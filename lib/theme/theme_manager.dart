@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_theme.dart';
+export 'app_theme.dart';
 
 class ThemeManager extends ChangeNotifier {
   AppThemeType _currentThemeType = AppThemeType.helixPrime;

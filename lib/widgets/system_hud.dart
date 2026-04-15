@@ -14,6 +14,21 @@ class SystemHud extends StatelessWidget {
     final telemetry = Provider.of<TelemetryService>(context);
 
     if (!telemetry.isWsConnected) {
+      if (theme.currentThemeType == AppThemeType.oled) {
+        return Container(
+          height: 30,
+          alignment: Alignment.center,
+          child: Text(
+            'SYSTEM STANDBY',
+            style: TextStyle(
+              color: theme.textColor.withOpacity(0.5),
+              letterSpacing: 2,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        );
+      }
       // Graceful Failure: Standby Blurred Mode
       return ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -43,6 +58,22 @@ class SystemHud extends StatelessWidget {
     }
 
     final data = telemetry.currentData;
+
+    if (theme.currentThemeType == AppThemeType.oled) {
+      return Container(
+        height: 40,
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.center,
+        child: Text(
+          'CPU: ${data.cpu.toInt()}%  |  RAM: ${data.ram.toInt()}%  |  GPU: ${data.gpu.toInt()}%  |  TEMP: ${data.temp.toInt()}°C',
+          style: TextStyle(
+            color: theme.textColor.withOpacity(0.7),
+            fontSize: 12,
+            letterSpacing: 1.5,
+          ),
+        ),
+      );
+    }
 
     return Container(
       height: 140,

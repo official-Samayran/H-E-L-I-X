@@ -78,7 +78,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: themeManager.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: themeManager.currentThemeType == AppThemeType.oled ? Colors.black : Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.settings_outlined, color: themeManager.textColor),
@@ -173,9 +175,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Stack(
           children: [
             // Central Animated Aura
-            Center(
-              child: AnimatedAura(color: themeManager.auraColor),
-            ),
+            if (themeManager.currentThemeType != AppThemeType.oled)
+              Center(
+                child: AnimatedAura(color: themeManager.auraColor),
+              ),
             
             // UI Overlay
             Column(
@@ -214,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Bottom Chat Interface
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
+                  decoration: themeManager.currentThemeType == AppThemeType.oled ? null : BoxDecoration(
                     color: themeManager.chatBackgroundColor,
                     boxShadow: [
                       BoxShadow(
@@ -228,14 +231,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Expanded(
                         child: Container(
-                          decoration: BoxDecoration(
-                            color: themeManager.backgroundColor.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: themeManager.accentColor.withOpacity(0.3),
-                              width: 1,
-                            ),
-                          ),
+                          decoration: themeManager.currentThemeType == AppThemeType.oled 
+                              ? BoxDecoration(
+                                  color: themeManager.textColor.withOpacity(0.03),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: themeManager.textColor.withOpacity(0.15),
+                                    width: 1,
+                                  ),
+                                )
+                              : BoxDecoration(
+                                  color: themeManager.backgroundColor.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: themeManager.accentColor.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
                           child: TextField(
                             controller: _chatController,
                             style: TextStyle(color: themeManager.textColor),
@@ -256,14 +268,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(width: 12),
                       Container(
-                        decoration: BoxDecoration(
+                        decoration: themeManager.currentThemeType == AppThemeType.oled ? null : BoxDecoration(
                           color: themeManager.accentColor,
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
                           icon: Icon(
                             Icons.send_rounded,
-                            color: themeManager.backgroundColor,
+                            color: themeManager.currentThemeType == AppThemeType.oled
+                                ? themeManager.accentColor
+                                : themeManager.backgroundColor,
                           ),
                           onPressed: _handleInput,
                         ),

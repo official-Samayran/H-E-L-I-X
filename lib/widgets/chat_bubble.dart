@@ -22,21 +22,33 @@ class ChatBubble extends StatelessWidget {
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
-        decoration: BoxDecoration(
-          color: isSystem
-              ? theme.chatBackgroundColor.withOpacity(0.5)
-              : (isUser ? theme.accentColor.withOpacity(0.2) : theme.chatBackgroundColor),
-          borderRadius: BorderRadius.circular(16).copyWith(
-            bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
-            bottomLeft: !isUser && !isSystem ? const Radius.circular(4) : const Radius.circular(16),
-          ),
-          border: Border.all(
-            color: isSystem 
-                ? theme.textColor.withOpacity(0.1) 
-                : (isUser ? theme.accentColor.withOpacity(0.5) : theme.chatBackgroundColor),
-            width: 1,
-          ),
-        ),
+        decoration: theme.currentThemeType == AppThemeType.oled 
+            ? BoxDecoration(
+                color: theme.textColor.withOpacity(0.02),
+                borderRadius: BorderRadius.circular(16).copyWith(
+                  bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
+                  bottomLeft: !isUser && !isSystem ? const Radius.circular(4) : const Radius.circular(16),
+                ),
+                border: Border.all(
+                  color: theme.textColor.withOpacity(0.15),
+                  width: 1,
+                ),
+              )
+            : BoxDecoration(
+                color: isSystem
+                    ? theme.chatBackgroundColor.withOpacity(0.5)
+                    : (isUser ? theme.accentColor.withOpacity(0.2) : theme.chatBackgroundColor),
+                borderRadius: BorderRadius.circular(16).copyWith(
+                  bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
+                  bottomLeft: !isUser && !isSystem ? const Radius.circular(4) : const Radius.circular(16),
+                ),
+                border: Border.all(
+                  color: isSystem 
+                      ? theme.textColor.withOpacity(0.1) 
+                      : (isUser ? theme.accentColor.withOpacity(0.5) : theme.chatBackgroundColor),
+                  width: 1,
+                ),
+              ),
         child: Text(
           message.text,
           style: TextStyle(

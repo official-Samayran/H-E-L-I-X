@@ -141,7 +141,7 @@ class AppThemes {
       name: 'OLED',
       backgroundColor: Colors.black,
       auraColor: Colors.white,
-      chatBackgroundColor: const Color(0xFF0A0A0A),
+      chatBackgroundColor: Colors.black,
       textColor: Colors.white,
       accentColor: Colors.white,
       themeData: ThemeData.dark().copyWith(
@@ -149,7 +149,7 @@ class AppThemes {
         colorScheme: const ColorScheme.dark().copyWith(
           primary: Colors.white,
           secondary: Colors.white,
-          surface: const Color(0xFF0A0A0A),
+          surface: Colors.black,
         ),
       ),
     ),
