@@ -14,7 +14,7 @@ class ConnectionService extends ChangeNotifier {
   bool _isLocalAvailable = false;
   bool _isCloudFallbackActive = true;
   bool _isTyping = false;
-  final String _geminiApiKey = 'AIzaSyCrzv-CDamln-NEAsnOnchyo-UnZbAPUgA';
+  String? _geminiApiKey;
   
   final _storage = const FlutterSecureStorage();
   final List<ChatMessage> _messages = [];
@@ -31,6 +31,8 @@ class ConnectionService extends ChangeNotifier {
   }
 
   Future<void> _initStorage() async {
+    _geminiApiKey = await _storage.read(key: 'gemini_api_key');
+    
     final prefs = await SharedPreferences.getInstance();
     final savedMessages = prefs.getStringList('chat_history') ?? [];
     
@@ -47,7 +49,8 @@ class ConnectionService extends ChangeNotifier {
   }
 
   Future<void> setGeminiApiKey(String key) async {
-    // Legacy mapping: Not used, API key hardcoded
+    await _storage.write(key: 'gemini_api_key', value: key);
+    _geminiApiKey = key;
   }
 
   void _startPolling() {
@@ -173,8 +176,8 @@ class ConnectionService extends ChangeNotifier {
   }
 
   Future<void> _sendToGemini(String text) async {
-    if (_geminiApiKey.isEmpty) {
-      addSystemMessage("Error: Gemini API Key missing.");
+    if (_geminiApiKey == null || _geminiApiKey!.isEmpty) {
+      addSystemMessage("Error: Gemini API Key missing. Please update in Settings.");
       return;
     }
 
@@ -182,7 +185,7 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${_geminiApiKey.trim()}');
+      final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${_geminiApiKey!.trim()}');
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
