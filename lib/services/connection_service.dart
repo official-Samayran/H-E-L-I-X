@@ -176,7 +176,9 @@ class ConnectionService extends ChangeNotifier {
   }
 
   Future<void> _sendToGemini(String text) async {
-    if (_geminiApiKey == null || _geminiApiKey!.isEmpty) {
+    _geminiApiKey = await _storage.read(key: 'gemini_api_key');
+
+    if (_geminiApiKey == null || _geminiApiKey!.trim().isEmpty) {
       addSystemMessage("Error: Gemini API Key missing. Please update in Settings.");
       return;
     }
