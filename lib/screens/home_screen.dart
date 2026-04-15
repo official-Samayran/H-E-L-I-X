@@ -184,8 +184,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(16),
-                    itemCount: messages.length,
+                    itemCount: messages.length + (connectionService.isTyping ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (index == messages.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: themeManager.accentColor)),
+                                const SizedBox(width: 8),
+                                Text('Helix is typing...', style: TextStyle(color: themeManager.textColor.withOpacity(0.5), fontSize: 12)),
+                              ],
+                            )
+                          ),
+                        );
+                      }
                       return ChatBubble(message: messages[index]);
                     },
                   ),

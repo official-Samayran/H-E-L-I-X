@@ -13,6 +13,7 @@ class ConnectionService extends ChangeNotifier {
   
   bool _isLocalAvailable = false;
   bool _isCloudFallbackActive = true;
+  bool _isTyping = false;
   final String _geminiApiKey = 'AIzaSyCrzv-CDamln-NEAsnOnchyo-UnZbAPUgA';
   
   final _storage = const FlutterSecureStorage();
@@ -21,6 +22,7 @@ class ConnectionService extends ChangeNotifier {
 
   bool get isLocalAvailable => _isLocalAvailable;
   bool get isCloudFallbackActive => _isCloudFallbackActive;
+  bool get isTyping => _isTyping;
   List<ChatMessage> get messages => List.unmodifiable(_messages);
 
   ConnectionService(this._baseProvider) {
@@ -140,6 +142,8 @@ class ConnectionService extends ChangeNotifier {
   }
 
   Future<void> _sendToOllama(String text) async {
+    _isTyping = true;
+    notifyListeners();
     try {
       final response = await http.post(
         Uri.parse(_baseProvider.ollamaUrl),
@@ -162,6 +166,9 @@ class ConnectionService extends ChangeNotifier {
       }
     } catch (e) {
       addSystemMessage("Connection Error: Could not reach Ollama.");
+    } finally {
+      _isTyping = false;
+      notifyListeners();
     }
   }
 
@@ -170,6 +177,9 @@ class ConnectionService extends ChangeNotifier {
       addSystemMessage("Error: Gemini API Key missing.");
       return;
     }
+
+    _isTyping = true;
+    notifyListeners();
 
     try {
       final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey';
@@ -182,6 +192,7 @@ class ConnectionService extends ChangeNotifier {
       );
 
       if (response.statusCode == 200) {
+        debugPrint('Gemini API Response: ${response.body}');
         final data = jsonDecode(response.body);
         final aiText = data['candidates'][0]['content']['parts'][0]['text'];
         _messages.add(ChatMessage(text: aiText, role: MessageRole.ai, timestamp: DateTime.now()));
@@ -191,7 +202,11 @@ class ConnectionService extends ChangeNotifier {
          addSystemMessage("Gemini Error: ${response.statusCode}");
       }
     } catch (e) {
+       debugPrint('Gemini Exception: $e');
        addSystemMessage("Gemini Error: Could not connect to API.");
+    } finally {
+       _isTyping = false;
+       notifyListeners();
     }
   }
 
