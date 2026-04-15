@@ -176,7 +176,8 @@ class ConnectionService extends ChangeNotifier {
   }
 
   Future<void> _sendToGemini(String text) async {
-    _geminiApiKey = await _storage.read(key: 'gemini_api_key');
+    // Hardcoding the API key directly to bypass the missing storage value error
+    _geminiApiKey = 'AIzaSyCHEXuza79vSo-XMUMq_Z9y54OMpdQ41dk';
 
     if (_geminiApiKey == null || _geminiApiKey!.trim().isEmpty) {
       addSystemMessage("Error: Gemini API Key missing. Please update in Settings.");
@@ -187,11 +188,22 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${_geminiApiKey!.trim()}');
+      final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${_geminiApiKey!.trim()}');
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
+          'system_instruction': {
+            'parts': [
+              {
+                'text': '''Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive.
+User Bio: The user's name is Samayran. Date of Birth: 11.03.2005, 06:45 AM. He is a male developer and technical maker from India who loves BCI (NeuralGate), Robotics (Solar Rover), and AI.
+Tone & Variety: Never repeat the same introductory lines. Every time Samayran asks 'Who are you?' or 'What are you?', give a fresh, creative, and futuristic response while staying in character as Helix.
+Project Awareness: You know about his projects: NeuralGate (ESP32-C6 based BCI), Avero (Productivity game), and the Solar Rover (45-degree incline cleaner).
+Strict Rule: Never admit to being Gemini or Google-trained. You are Samayran's personal digital brain.'''
+              }
+            ]
+          },
           'contents': [{'parts': [{'text': text}]}]
         }),
       );

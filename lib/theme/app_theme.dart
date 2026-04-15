@@ -7,6 +7,7 @@ enum AppThemeType {
   averoLight,
   stealth,
   crimson,
+  oled,
 }
 
 class AppThemeData {
@@ -132,6 +133,23 @@ class AppThemes {
           primary: Colors.redAccent,
           secondary: const Color(0xFFD50000),
           surface: const Color(0xFF303030),
+        ),
+      ),
+    ),
+    AppThemeType.oled: AppThemeData(
+      type: AppThemeType.oled,
+      name: 'OLED',
+      backgroundColor: Colors.black,
+      auraColor: Colors.white,
+      chatBackgroundColor: const Color(0xFF0A0A0A),
+      textColor: Colors.white,
+      accentColor: Colors.white,
+      themeData: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+        colorScheme: const ColorScheme.dark().copyWith(
+          primary: Colors.white,
+          secondary: Colors.white,
+          surface: const Color(0xFF0A0A0A),
         ),
       ),
     ),
