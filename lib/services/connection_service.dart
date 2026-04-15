@@ -182,9 +182,9 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey';
+      final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${_geminiApiKey.trim()}');
       final response = await http.post(
-        Uri.parse(url),
+        uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'contents': [{'parts': [{'text': text}]}]
