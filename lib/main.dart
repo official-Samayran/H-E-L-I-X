@@ -11,6 +11,10 @@ import 'services/command_service.dart';
 import 'services/intent_router.dart';
 
 import 'services/notification_service.dart';
+import 'widgets/fps_monitor.dart';
+import 'widgets/adaptive_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 
@@ -18,6 +22,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
   await NotificationService.initialize();
+  
+  if (Platform.isAndroid) {
+    final prefs = await SharedPreferences.getInstance();
+    final isSecure = prefs.getBool('secure_screen_protocol') ?? false;
+    if (isSecure) {
+      const platform = MethodChannel('com.example.helix/secure');
+      try {
+        await platform.invokeMethod('setSecure', {'secure': true});
+      } catch (e) {
+        debugPrint('Failed to set secure flag: $e');
+      }
+    }
+  }
   
   runApp(
     MultiProvider(
@@ -55,11 +72,38 @@ class HelixApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ThemeManager>(
       builder: (context, themeManager, child) {
-        return MaterialApp(
-          title: 'Helix Engine',
-          debugShowCheckedModeBanner: false,
-          theme: themeManager.themeData,
-          home: const HomeScreen(),
+        return AdaptiveUI(
+          scale: themeManager.uiScale,
+          child: Builder(
+            builder: (context) {
+              return MaterialApp(
+                title: 'Helix Engine',
+                debugShowCheckedModeBanner: false,
+                theme: themeManager.themeData,
+                home: const HomeScreen(),
+                builder: (context, child) {
+                  final mediaQueryData = MediaQuery.of(context);
+                  return MediaQuery(
+                    data: mediaQueryData.copyWith(
+                      textScaler: TextScaler.linear(themeManager.uiScale),
+                    ),
+                    child: FpsMonitor(
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOut,
+                        style: TextStyle(
+                          fontFamily: themeManager.themeData.textTheme.bodyMedium?.fontFamily,
+                          fontWeight: themeManager.fontWeight,
+                          color: themeManager.textColor,
+                        ),
+                        child: child ?? const SizedBox(),
+                      ),
+                    ),
+                  );
+                },
+              );
+            }
+          ),
         );
       },
     );

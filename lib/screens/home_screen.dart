@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:battery_plus/battery_plus.dart';
 import '../theme/theme_manager.dart';
-import '../theme/app_theme.dart';
 import '../services/connection_service.dart';
 import 'tabs/chat_tab.dart';
 import 'tabs/system_dashboard_tab.dart';
@@ -23,7 +22,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   int _batteryLevel = 100;
   Timer? _timer;
   late AnimationController _gearController;
-
+  
+  int? _peekingTabIndex;
+  double _peekDragAmount = 0.0;
+  
   @override
   void initState() {
     super.initState();
@@ -129,61 +131,140 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Scaffold(
       backgroundColor: themeManager.backgroundColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopHUD(themeManager, connectionService),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentIndex = index;
-                  });
-                },
-                children: const [
-                  ChatTab(),
-                  SystemDashboardTab(),
-                  ConfigurationTab(),
-                ],
-              ),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isCompressed = constraints.maxHeight < 400;
+            return Column(
+              children: [
+                if (!isCompressed) _buildTopHUD(themeManager, connectionService),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentIndex = index;
+                          });
+                        },
+                        children: const [
+                          ChatTab(),
+                          SystemDashboardTab(),
+                          ConfigurationTab(),
+                        ],
+                      ),
+                      if (_peekingTabIndex != null)
+                        _buildPeekOverlay(),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
         ),
       ),
-      bottomNavigationBar: Theme(
-        data: Theme.of(context).copyWith(
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
+      bottomNavigationBar: _buildGestureTabBar(themeManager),
+    );
+  }
+
+  Widget _buildPeekOverlay() {
+    double scale = 0.8 + (_peekDragAmount < 0 ? (_peekDragAmount / -500).clamp(0.0, 0.2) : 0);
+    
+    Widget targetPage;
+    switch (_peekingTabIndex) {
+      case 0: targetPage = const ChatTab(); break;
+      case 1: targetPage = const SystemDashboardTab(); break;
+      case 2: targetPage = const ConfigurationTab(); break;
+      default: targetPage = const SizedBox();
+    }
+
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black87,
+        child: Center(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.5, end: scale),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.elasticOut,
+            builder: (context, val, child) {
+              return Transform.scale(
+                scale: val,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.9,
+                    height: MediaQuery.of(context).size.height * 0.8,
+                    child: IgnorePointer(child: targetPage),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
-        child: BottomNavigationBar(
-          backgroundColor: themeManager.currentThemeType == AppThemeType.oled 
-              ? Colors.black 
-              : themeManager.chatBackgroundColor,
-          elevation: 8,
-          currentIndex: _currentIndex,
-          onTap: _onTabTapped,
-          selectedItemColor: themeManager.accentColor,
-          unselectedItemColor: themeManager.textColor.withOpacity(0.4),
-          showSelectedLabels: false,
-          showUnselectedLabels: false,
-          type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
-              label: 'Chat',
+      ),
+    );
+  }
+
+  Widget _buildGestureTabBar(ThemeManager themeManager) {
+    return Container(
+      color: themeManager.currentThemeType == AppThemeType.oled 
+          ? Colors.black 
+          : themeManager.chatBackgroundColor,
+      height: 80,
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildGestureTabItem(0, Icons.chat_bubble_outline, Icons.chat_bubble, 'Chat', themeManager),
+          _buildGestureTabItem(1, Icons.dashboard_outlined, Icons.dashboard, 'Dashboard', themeManager),
+          _buildGestureTabItem(2, Icons.settings_outlined, Icons.settings, 'Config', themeManager),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGestureTabItem(int index, IconData iconOutlined, IconData iconSolid, String label, ThemeManager themeManager) {
+    final isSelected = _currentIndex == index;
+    final color = isSelected ? themeManager.accentColor : themeManager.textColor.withOpacity(0.4);
+
+    return GestureDetector(
+      onTap: () => _onTabTapped(index),
+      onLongPressStart: (details) {
+        setState(() {
+          _peekingTabIndex = index;
+          _peekDragAmount = 0.0;
+        });
+      },
+      onLongPressMoveUpdate: (details) {
+        setState(() {
+          _peekDragAmount = details.localOffsetFromOrigin.dy;
+        });
+      },
+      onLongPressEnd: (details) {
+        if (_peekDragAmount < -40.0) {
+          // Swipe threshold reached, jump to page
+          _onTabTapped(index);
+        }
+        setState(() {
+          _peekingTabIndex = null;
+          _peekDragAmount = 0.0;
+        });
+      },
+      child: Container(
+        color: Colors.transparent, // needed for gesture detector area
+        width: 80,
+        height: 60,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isSelected ? themeManager.accentColor.withOpacity(0.1) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined),
-              activeIcon: Icon(Icons.dashboard),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              activeIcon: Icon(Icons.settings),
-              label: 'Config',
-            ),
-          ],
+            child: Icon(isSelected ? iconSolid : iconOutlined, color: color, size: 28),
+          ),
         ),
       ),
     );

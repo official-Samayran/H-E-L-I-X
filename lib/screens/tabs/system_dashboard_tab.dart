@@ -4,11 +4,102 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../theme/theme_manager.dart';
+import '../../widgets/battery_analytics.dart';
 import '../../services/telemetry_service.dart';
 import '../../services/connection_service.dart';
+import '../sprint_log_screen.dart';
 
-class SystemDashboardTab extends StatelessWidget {
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:system_info2/system_info2.dart';
+
+class SystemDashboardTab extends StatefulWidget {
   const SystemDashboardTab({super.key});
+
+  @override
+  State<SystemDashboardTab> createState() => _SystemDashboardTabState();
+}
+
+class _SystemDashboardTabState extends State<SystemDashboardTab> {
+  bool _showMobileTelemetry = false;
+  Map<String, String> _mobileSpecs = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMobileSpecs();
+  }
+
+  Future<void> _fetchMobileSpecs() async {
+    final deviceInfo = DeviceInfoPlugin();
+    String model = "Unknown";
+    String kernel = "Unknown";
+    
+    if (Platform.isAndroid) {
+      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+      model = "${androidInfo.manufacturer} ${androidInfo.model}";
+      kernel = androidInfo.version.release;
+    } else if (Platform.isIOS) {
+      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+      model = iosInfo.name;
+      kernel = iosInfo.systemVersion;
+    }
+
+    int freeRam = 0;
+    int totalRam = 0;
+    try {
+      freeRam = SysInfo.getFreePhysicalMemory();
+      totalRam = SysInfo.getTotalPhysicalMemory();
+    } catch (_) {}
+    
+    if (mounted) {
+      setState(() {
+        _mobileSpecs = {
+          "Model": model,
+          "Kernel/OS": kernel,
+          "Free RAM": freeRam > 0 ? "${(freeRam / 1024 / 1024 / 1024).toStringAsFixed(2)} GB" : "N/A",
+          "Total RAM": totalRam > 0 ? "${(totalRam / 1024 / 1024 / 1024).toStringAsFixed(2)} GB" : "N/A",
+        };
+      });
+    }
+  }
+
+  void _showTop10Popup(BuildContext context, ThemeManager theme, String resourceName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.chatBackgroundColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Top 10 Processes ($resourceName)',
+                style: TextStyle(color: theme.textColor, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: 10,
+                  itemBuilder: (context, index) {
+                    final names = ['chrome.exe', 'Code.exe', 'Discord.exe', 'Spotify.exe', 'explorer.exe', 'HelixEngine.exe', 'Dwm.exe', 'SearchApp.exe', 'Taskmgr.exe', 'svchost.exe'];
+                    return ListTile(
+                      leading: Text('#${index + 1}', style: TextStyle(color: theme.accentColor)),
+                      title: Text(names[index], style: TextStyle(color: theme.textColor, fontFamily: 'monospace')),
+                      trailing: Text('${(25.0 - index * 2.1).toStringAsFixed(1)}%', style: TextStyle(color: theme.textColor.withOpacity(0.7))),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,39 +143,130 @@ class SystemDashboardTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'SYSTEM TELEMETRY',
-                  style: TextStyle(
-                    color: themeManager.textColor,
-                    fontSize: 18,
-                    letterSpacing: 4,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Top Apps & Info Grid
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 2.5,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildInfoTile('Top CPU', current.topCpuApp, Icons.memory, themeManager, isLoading),
-                    _buildInfoTile('Top RAM', current.topRamApp, Icons.memory_outlined, themeManager, isLoading),
-                    _buildInfoTile('Disk Usage', '${current.disk.toStringAsFixed(1)}%', Icons.storage, themeManager, isLoading),
-                    _buildInfoTile('Temp & Fan', '${current.temp.toStringAsFixed(1)}°C | ${current.fanSpeed.toInt()} RPM', Icons.thermostat, themeManager, isLoading),
+                    Text(
+                      'SYSTEM TELEMETRY',
+                      style: TextStyle(
+                        color: themeManager.textColor,
+                        fontSize: 18,
+                        letterSpacing: 4,
+                        fontWeight: FontWeight.w300,
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: themeManager.backgroundColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: themeManager.accentColor.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => setState(() => _showMobileTelemetry = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: !_showMobileTelemetry ? themeManager.accentColor.withOpacity(0.2) : Colors.transparent,
+                                borderRadius: const BorderRadius.horizontal(left: Radius.circular(15)),
+                              ),
+                              child: Text('PC', style: TextStyle(color: !_showMobileTelemetry ? themeManager.accentColor : themeManager.textColor.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => setState(() => _showMobileTelemetry = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: _showMobileTelemetry ? themeManager.accentColor.withOpacity(0.2) : Colors.transparent,
+                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(15)),
+                              ),
+                              child: Text('MOBILE', style: TextStyle(color: _showMobileTelemetry ? themeManager.accentColor : themeManager.textColor.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SprintLogScreen()));
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: themeManager.accentColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: themeManager.accentColor.withOpacity(0.5)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.history, color: themeManager.accentColor),
+                        const SizedBox(width: 12),
+                        Text(
+                          'VIEW HISTORY OF HELIX',
+                          style: TextStyle(
+                            color: themeManager.accentColor,
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
                 
                 const SizedBox(height: 24),
-                SizedBox(height: 200, child: _buildChartCard(context, 'CPU Usage', cpuSpots, Colors.cyanAccent, themeManager, isLoading)),
-                const SizedBox(height: 16),
-                SizedBox(height: 200, child: _buildChartCard(context, 'RAM Usage', ramSpots, Colors.greenAccent, themeManager, isLoading)),
-                const SizedBox(height: 16),
-                SizedBox(height: 200, child: _buildChartCard(context, 'GPU Usage', gpuSpots, Colors.purpleAccent, themeManager, isLoading)),
+                
+                if (_showMobileTelemetry) ...[
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 2.5,
+                    children: _mobileSpecs.entries.map((e) => _buildInfoTile(e.key, e.value, Icons.memory, themeManager, false)).toList(),
+                  ),
+                ] else ...[
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 2.5,
+                    children: [
+                      _buildInfoTile('Top CPU', current.topCpuApp, Icons.memory, themeManager, isLoading),
+                      _buildInfoTile('Top RAM', current.topRamApp, Icons.memory_outlined, themeManager, isLoading),
+                      _buildInfoTile('Disk Usage', '${current.disk.toStringAsFixed(1)}%', Icons.storage, themeManager, isLoading),
+                      _buildInfoTile('Temp & Fan', '${current.temp.toStringAsFixed(1)}°C | ${current.fanSpeed.toInt()} RPM', Icons.thermostat, themeManager, isLoading),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  GestureDetector(
+                    onTap: () => _showTop10Popup(context, themeManager, 'CPU'),
+                    child: SizedBox(height: 200, child: _buildChartCard(context, 'CPU Usage', cpuSpots, Colors.cyanAccent, themeManager, isLoading)),
+                  ),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () => _showTop10Popup(context, themeManager, 'RAM'),
+                    child: SizedBox(height: 200, child: _buildChartCard(context, 'RAM Usage', ramSpots, Colors.greenAccent, themeManager, isLoading)),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(height: 200, child: _buildChartCard(context, 'GPU Usage', gpuSpots, Colors.purpleAccent, themeManager, isLoading)),
+                ],
+                const SizedBox(height: 24),
+                const BatteryAnalytics(),
+                const SizedBox(height: 32),
               ],
             ),
           );

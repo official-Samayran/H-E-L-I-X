@@ -8,6 +8,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'base_connection_provider.dart';
 import '../models/chat_message.dart';
 
+class SearchResultItem {
+  final int index;
+  final String summary;
+  final ChatMessage message;
+
+  SearchResultItem(this.index, this.summary, this.message);
+}
+
 class ConnectionService extends ChangeNotifier {
   final BaseConnectionProvider _baseProvider;
   
@@ -240,6 +248,66 @@ Strict Rule: Never admit to being Gemini or Google-trained. You are Samayran's p
 
   Future<void> _syncContextToLocal() async {
     // Left simple for now
+  }
+
+  Future<List<SearchResultItem>> semanticSearchHistory(String query) async {
+    if (_geminiApiKey == null || _geminiApiKey!.trim().isEmpty) {
+      return []; // Needs API key
+    }
+    
+    // Limit to last 50 messages to save context limits
+    int startIdx = _messages.length > 50 ? _messages.length - 50 : 0;
+    List<String> contextList = [];
+    for (int i = startIdx; i < _messages.length; i++) {
+      contextList.add("[$i] ${_messages[i].role.name.toUpperCase()}: ${_messages[i].text}");
+    }
+    String historyContext = contextList.join("\n");
+
+    String prompt = '''You are a semantic search engine for a chat application. The user is searching their chat history for: "$query".
+Analyze the following recent chat history and find up to 5 most relevant messages.
+Return a STRICT JSON array of objects. Do NOT return markdown formatting like ```json. Just raw JSON.
+Each object must have exactly two fields:
+- "index": the integer index of the matched message.
+- "summary": a very brief 1-line contextual summary explaining why it matched (e.g. "Discussed implementing security features").
+
+Chat History:
+$historyContext
+''';
+
+    try {
+      final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${_geminiApiKey!.trim()}');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'contents': [{'parts': [{'text': prompt}]}],
+          'generationConfig': {
+             'temperature': 0.2,
+          }
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        String aiText = data['candidates'][0]['content']['parts'][0]['text'];
+        
+        aiText = aiText.replaceAll('```json', '').replaceAll('```', '').trim();
+        
+        List<dynamic> parsed = jsonDecode(aiText);
+        List<SearchResultItem> results = [];
+        for (var item in parsed) {
+          int idx = item['index'] as int;
+          String summary = item['summary'] as String;
+          if (idx >= 0 && idx < _messages.length) {
+            results.add(SearchResultItem(idx, summary, _messages[idx]));
+          }
+        }
+        return results;
+      }
+    } catch (e) {
+      debugPrint("Semantic search error: $e");
+    }
+    return [];
   }
 
   @override

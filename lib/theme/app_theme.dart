@@ -9,6 +9,12 @@ enum AppThemeType {
   stealth,
   crimson,
   oled,
+  ascii,
+  cyberpunk,
+  minecraft,
+  valorant,
+  gtaV,
+  racing,
 }
 
 class AppThemeData {
@@ -20,6 +26,7 @@ class AppThemeData {
   final Color textColor;
   final Color accentColor;
   final ThemeData themeData;
+  final double borderRadius;
 
   const AppThemeData({
     required this.type,
@@ -30,6 +37,7 @@ class AppThemeData {
     required this.textColor,
     required this.accentColor,
     required this.themeData,
+    this.borderRadius = 16.0,
   });
 }
 
@@ -189,5 +197,124 @@ class AppThemes {
         ),
       ),
     ),
+    AppThemeType.ascii: AppThemeData(
+      type: AppThemeType.ascii,
+      name: 'ASCII Mode',
+      backgroundColor: Colors.black,
+      auraColor: Colors.greenAccent,
+      chatBackgroundColor: Colors.black,
+      textColor: Colors.greenAccent,
+      accentColor: Colors.greenAccent,
+      borderRadius: 0.0,
+      themeData: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+        textTheme: GoogleFonts.jetBrainsMonoTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.greenAccent, displayColor: Colors.greenAccent),
+        colorScheme: const ColorScheme.dark().copyWith(
+          primary: Colors.greenAccent,
+          secondary: Colors.greenAccent,
+          surface: Colors.black,
+        ),
+        cardTheme: CardThemeData(
+          color: Colors.black,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0), side: const BorderSide(color: Colors.greenAccent)),
+        ),
+      ),
+    ),
+    AppThemeType.cyberpunk: AppThemeData(
+      type: AppThemeType.cyberpunk,
+      name: 'Cyberpunk',
+      backgroundColor: Colors.black,
+      auraColor: const Color(0xFFFDEE00),
+      chatBackgroundColor: const Color(0xFF111111),
+      textColor: const Color(0xFFFDEE00),
+      accentColor: const Color(0xFFFDEE00),
+      borderRadius: 8.0,
+      themeData: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+        textTheme: GoogleFonts.orbitronTextTheme(ThemeData.dark().textTheme).apply(bodyColor: const Color(0xFFFDEE00), displayColor: const Color(0xFFFDEE00)),
+        colorScheme: const ColorScheme.dark().copyWith(
+          primary: const Color(0xFFFDEE00),
+          secondary: const Color(0xFFFDEE00),
+          surface: const Color(0xFF111111),
+        ),
+      ),
+    ),
+    AppThemeType.minecraft: AppThemeData(
+      type: AppThemeType.minecraft,
+      name: 'Minecraft',
+      backgroundColor: const Color(0xFF3B2F2F),
+      auraColor: const Color(0xFF55FF55),
+      chatBackgroundColor: const Color(0xFF5C4033),
+      textColor: const Color(0xFFFFFFFF),
+      accentColor: const Color(0xFF55FF55),
+      borderRadius: 0.0,
+      themeData: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF3B2F2F),
+        textTheme: GoogleFonts.vt323TextTheme(ThemeData.dark().textTheme).apply(bodyColor: const Color(0xFFFFFFFF), displayColor: const Color(0xFFFFFFFF)),
+        colorScheme: const ColorScheme.dark().copyWith(
+          primary: const Color(0xFF55FF55),
+          secondary: const Color(0xFF55FF55),
+          surface: const Color(0xFF5C4033),
+        ),
+      ),
+    ),
+    AppThemeType.valorant: AppThemeData(
+      type: AppThemeType.valorant,
+      name: 'Valorant',
+      backgroundColor: const Color(0xFF111111),
+      auraColor: const Color(0xFF00ADAA),
+      chatBackgroundColor: const Color(0xFF1F2326),
+      textColor: Colors.white,
+      accentColor: const Color(0xFF00ADAA),
+      borderRadius: 0.0,
+      themeData: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF111111),
+        textTheme: GoogleFonts.tekoTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
+        colorScheme: const ColorScheme.dark().copyWith(
+          primary: const Color(0xFF00ADAA),
+          secondary: const Color(0xFF00ADAA),
+          surface: const Color(0xFF1F2326),
+        ),
+      ),
+    ),
+    AppThemeType.gtaV: AppThemeData(
+      type: AppThemeType.gtaV,
+      name: 'GTA V',
+      backgroundColor: Colors.black,
+      auraColor: const Color(0xFF4CBB17),
+      chatBackgroundColor: const Color(0xFF1A1A1A),
+      textColor: Colors.white,
+      accentColor: const Color(0xFF4CBB17),
+      borderRadius: 4.0,
+      themeData: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+        textTheme: GoogleFonts.bebasNeueTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
+        colorScheme: const ColorScheme.dark().copyWith(
+          primary: const Color(0xFF4CBB17),
+          secondary: const Color(0xFF4CBB17),
+          surface: const Color(0xFF1A1A1A),
+        ),
+      ),
+    ),
+    AppThemeType.racing: AppThemeData(
+      type: AppThemeType.racing,
+      name: 'Racing',
+      backgroundColor: const Color(0xFF2A2A2A),
+      auraColor: const Color(0xFFD3D3D3),
+      chatBackgroundColor: const Color(0xFF333333),
+      textColor: const Color(0xFFFFFFFF),
+      accentColor: const Color(0xFFC0C0C0),
+      borderRadius: 12.0,
+      themeData: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF2A2A2A),
+        textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
+        colorScheme: const ColorScheme.dark().copyWith(
+          primary: const Color(0xFFC0C0C0),
+          secondary: const Color(0xFFD3D3D3),
+          surface: const Color(0xFF333333),
+        ),
+      ),
+    ),
   };
 }
+

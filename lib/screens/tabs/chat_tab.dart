@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../theme/theme_manager.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/animated_aura.dart';
 import '../../services/connection_service.dart';
 import '../../services/intent_router.dart';
 import '../../widgets/chat_bubble.dart';
+import '../search_results_screen.dart';
+import 'package:flutter/services.dart';
 
 class ChatTab extends StatefulWidget {
   const ChatTab({super.key});
@@ -22,6 +23,12 @@ class _ChatTabState extends State<ChatTab> {
   late stt.SpeechToText _speech;
   bool _isListening = false;
   
+  bool _awaitingWipeOTP = false;
+  String _expectedOTP = "";
+  
+  double _lastHapticOffset = 0.0;
+  static const MethodChannel _hapticChannel = MethodChannel('com.example.helix/haptics');
+  
   final List<String> _smartReplies = [
     "System Status?",
     "HELIX, Lumos",
@@ -33,11 +40,24 @@ class _ChatTabState extends State<ChatTab> {
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if ((_scrollController.offset - _lastHapticOffset).abs() > 50) {
+      _lastHapticOffset = _scrollController.offset;
+      try {
+        _hapticChannel.invokeMethod('vibrateWaveform');
+      } catch (e) {
+        HapticFeedback.lightImpact();
+      }
+    }
   }
 
   @override
   void dispose() {
     _chatController.dispose();
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -92,6 +112,17 @@ class _ChatTabState extends State<ChatTab> {
       _initiateSecureWipe(connectionService);
       return;
     }
+    
+    if (_awaitingWipeOTP) {
+      if (text.trim() == _expectedOTP || text.trim() == '000000') { // 000000 as universal bypass for testing
+        _awaitingWipeOTP = false;
+        _startSelfDestructSequence();
+      } else {
+        _awaitingWipeOTP = false;
+        connectionService.addSystemMessage("SECURITY ALERT: Invalid OTP. Wipe aborted.");
+      }
+      return;
+    }
 
     // Lumos/Nox intercept (mock hardware)
     if (text.toLowerCase().contains('helix, lumos') || text.toLowerCase().contains('helix, nox')) {
@@ -114,11 +145,21 @@ class _ChatTabState extends State<ChatTab> {
   void _initiateSecureWipe(ConnectionService connectionService) {
     // Generate 6 digit OTP
     final String otp = (100000 + Random().nextInt(900000)).toString();
-    connectionService.addSystemMessage("SECURITY ALERT: Memory wipe requested. OTP sent to samayran73@gmail.com (Mocked). Enter OTP to confirm.");
-    // In a real app, use mailer here:
-    // _sendEmailOTP("samayran73@gmail.com", otp);
-    
-    // We would store this OTP in state to verify the next message
+    _expectedOTP = otp;
+    _awaitingWipeOTP = true;
+    connectionService.addSystemMessage("SECURITY ALERT: Memory wipe requested. OTP sent to samayran73@gmail.com (Mocked). Enter OTP $otp to confirm.");
+  }
+
+  void _startSelfDestructSequence() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: const Color(0xFF8B0000),
+      transitionDuration: const Duration(milliseconds: 500),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return const _SelfDestructOverlay();
+      },
+    );
   }
 
   @override
@@ -291,7 +332,97 @@ class _ChatTabState extends State<ChatTab> {
             ],
           ),
         ),
+        
+        // Search Entry Point Overlay
+        Positioned(
+          top: 16,
+          right: 16,
+          child: Container(
+            decoration: BoxDecoration(
+              color: themeManager.chatBackgroundColor.withOpacity(0.8),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: Icon(Icons.search, color: themeManager.accentColor),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchResultsScreen()));
+              },
+            ),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _SelfDestructOverlay extends StatefulWidget {
+  const _SelfDestructOverlay();
+
+  @override
+  State<_SelfDestructOverlay> createState() => _SelfDestructOverlayState();
+}
+
+class _SelfDestructOverlayState extends State<_SelfDestructOverlay> {
+  int _countdown = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    _runSequence();
+  }
+
+  Future<void> _runSequence() async {
+    for (int i = 3; i > 0; i--) {
+      if (mounted) {
+        setState(() => _countdown = i);
+      }
+      HapticFeedback.heavyImpact();
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    
+    if (mounted) {
+      setState(() => _countdown = 0);
+    }
+    // Rapid escalating haptics right before exit
+    for (int i = 0; i < 5; i++) {
+      HapticFeedback.heavyImpact();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
+    SystemNavigator.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.warning_amber_rounded, size: 120, color: Colors.white),
+            const SizedBox(height: 24),
+            Text(
+              'DATA PURGE IN PROGRESS',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 48),
+            Text(
+              _countdown.toString(),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 120,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

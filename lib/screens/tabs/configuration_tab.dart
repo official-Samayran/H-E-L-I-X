@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:flutter/services.dart';
 import '../../services/base_connection_provider.dart';
 import '../../services/connection_service.dart';
 import '../../theme/theme_manager.dart';
@@ -31,9 +32,12 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
   bool _motionBlur = true;
   bool _neonEdge = false;
   bool _particleBg = false;
+  bool _asciiMode = false;
+  bool _fpsSyncLock = false;
   bool _voiceFlashlight = false;
   bool _weatherAura = true;
   bool _lowLatency = false;
+  bool _secureScreen = false;
   double _hapticIntensity = 0.5;
 
   @override
@@ -46,7 +50,51 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
     _macController = TextEditingController(text: provider.macAddress);
     _apiKeyController = TextEditingController(text: connectionProvider.geminiApiKey ?? '');
     
+    _loadSecureScreenState();
     _authenticate();
+  }
+
+  Future<void> _loadSecureScreenState() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _secureScreen = prefs.getBool('secure_screen_protocol') ?? false;
+      _fpsSyncLock = prefs.getBool('fps_sync_lock') ?? false;
+    });
+    if (_fpsSyncLock && mounted) {
+      Provider.of<ThemeManager>(context, listen: false).toggleFpsSyncLock(_fpsSyncLock);
+    }
+  }
+
+  Future<void> _toggleSecureScreen(bool value) async {
+    _resetInactivityTimer();
+    setState(() => _secureScreen = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('secure_screen_protocol', value);
+    
+    const platform = MethodChannel('com.example.helix/secure');
+    try {
+      await platform.invokeMethod('setSecure', {'secure': value});
+    } catch (e) {
+      // Ignored
+    }
+  }
+
+  Future<void> _toggleFpsSyncLock(bool value) async {
+    _resetInactivityTimer();
+    setState(() => _fpsSyncLock = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('fps_sync_lock', value);
+    
+    if (mounted) {
+      Provider.of<ThemeManager>(context, listen: false).toggleFpsSyncLock(value);
+    }
+    
+    const platform = MethodChannel('com.example.helix/secure');
+    try {
+      await platform.invokeMethod('setFrameRate', {'lock': value});
+    } catch (e) {
+      // Ignored
+    }
   }
 
   Future<void> _authenticate() async {
@@ -55,31 +103,38 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
       final bool canAuthenticate = canAuthenticateWithBiometrics || await auth.isDeviceSupported();
       
       if (!canAuthenticate) {
-        setState(() {
-          _isAuthenticated = true;
-          _isAuthenticating = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isAuthenticated = true;
+            _isAuthenticating = false;
+          });
+        }
         return;
       }
 
       final bool didAuthenticate = await auth.authenticate(
         localizedReason: 'Unlock Helix Configuration',
-        options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
+        persistAcrossBackgrounding: true, 
+        biometricOnly: true,
       );
       
-      setState(() {
-        _isAuthenticated = didAuthenticate;
-        _isAuthenticating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isAuthenticated = didAuthenticate;
+          _isAuthenticating = false;
+        });
+      }
       
       if (didAuthenticate) {
         _resetInactivityTimer();
       }
     } catch (e) {
-      setState(() {
-        _isAuthenticated = false;
-        _isAuthenticating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isAuthenticated = false;
+          _isAuthenticating = false;
+        });
+      }
     }
   }
 
@@ -218,6 +273,44 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
           const SizedBox(height: 16),
           
           _buildSectionHeader('Visuals', theme),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: DropdownButtonFormField<AppThemeType>(
+              value: theme.currentThemeType,
+              dropdownColor: theme.chatBackgroundColor,
+              style: TextStyle(color: theme.textColor),
+              onChanged: (AppThemeType? newTheme) {
+                _resetInactivityTimer();
+                if (newTheme != null) {
+                  Provider.of<ThemeManager>(context, listen: false).changeTheme(newTheme);
+                }
+              },
+              decoration: InputDecoration(
+                labelText: 'Engine Theme',
+                labelStyle: TextStyle(color: theme.textColor.withOpacity(0.6)),
+                filled: true,
+                fillColor: theme.chatBackgroundColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: AppThemeType.values.map((type) {
+                final themeData = AppThemes.themes[type];
+                if (themeData == null) return null;
+                return DropdownMenuItem(
+                  value: type,
+                  child: Row(
+                    children: [
+                      Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: themeData.accentColor)),
+                      const SizedBox(width: 8),
+                      Text(themeData.name),
+                    ],
+                  ),
+                );
+              }).whereType<DropdownMenuItem<AppThemeType>>().toList(),
+            ),
+          ),
           _buildNeonToggle('Master Swipe Mode', _masterSwipe, (v) => setState(() => _masterSwipe = v), theme),
           _buildNeonToggle('Motion Blur', _motionBlur, (v) => setState(() => _motionBlur = v), theme),
           _buildNeonToggle('Neon Edge Lighting', _neonEdge, (v) => setState(() => _neonEdge = v), theme),
@@ -228,7 +321,53 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
           _buildNeonToggle('Weather-Aura Sync', _weatherAura, (v) => setState(() => _weatherAura = v), theme),
 
           _buildSectionHeader('System', theme),
+          _buildNeonToggle('Secure Screen Protocol', _secureScreen, _toggleSecureScreen, theme),
           _buildNeonToggle('Low-Latency Mode', _lowLatency, (v) => setState(() => _lowLatency = v), theme),
+          _buildNeonToggle('144 FPS Sync Lock', _fpsSyncLock, _toggleFpsSyncLock, theme),
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('UI Scale: ${theme.uiScale.toStringAsFixed(2)}x', style: TextStyle(color: theme.textColor, fontSize: 14)),
+                Slider(
+                  value: theme.uiScale,
+                  min: 0.8,
+                  max: 1.2,
+                  divisions: 4,
+                  activeColor: theme.accentColor,
+                  inactiveColor: theme.accentColor.withOpacity(0.2),
+                  onChanged: (val) {
+                    _resetInactivityTimer();
+                    Provider.of<ThemeManager>(context, listen: false).setUiScale(val);
+                  },
+                ),
+              ],
+            ),
+          ),
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Font Weight: ${theme.fontWeight.toString()}', style: TextStyle(color: theme.textColor, fontSize: 14)),
+                Slider(
+                  value: theme.fontWeight.index.toDouble(),
+                  min: 0,
+                  max: 8,
+                  divisions: 8,
+                  activeColor: theme.accentColor,
+                  inactiveColor: theme.accentColor.withOpacity(0.2),
+                  onChanged: (val) {
+                    _resetInactivityTimer();
+                    Provider.of<ThemeManager>(context, listen: false).setFontWeightIndex(val.toInt());
+                  },
+                ),
+              ],
+            ),
+          ),
           
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),

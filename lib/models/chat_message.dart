@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 enum MessageRole { user, ai, system }
 
 class ChatMessage {
@@ -31,5 +29,27 @@ class ChatMessage {
       timestamp: DateTime.parse(json['timestamp']),
       isOfflineContext: json['isOfflineContext'] ?? false,
     );
+  }
+
+  bool get hasTaskIntent {
+    if (role != MessageRole.user) return false;
+    final lower = text.toLowerCase();
+    return lower.contains('remind me') || 
+           lower.contains('schedule') || 
+           lower.contains('kal subah') ||
+           lower.contains('remind');
+  }
+
+  String get taskTitle {
+    final lower = text.toLowerCase();
+    int idx = lower.indexOf('remind me to ');
+    if (idx != -1) {
+      return text.substring(idx + 'remind me to '.length).trim();
+    }
+    idx = lower.indexOf('schedule ');
+    if (idx != -1) {
+      return text.substring(idx + 'schedule '.length).trim();
+    }
+    return text.length > 50 ? '${text.substring(0, 47)}...' : text;
   }
 }
