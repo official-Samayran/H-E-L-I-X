@@ -15,6 +15,7 @@ class ConnectionService extends ChangeNotifier {
   bool _isCloudFallbackActive = true;
   bool _isTyping = false;
   String? _geminiApiKey;
+  String _selectedModel = 'Gemini'; // Defaults to Gemini
   
   final _storage = const FlutterSecureStorage();
   final List<ChatMessage> _messages = [];
@@ -24,6 +25,8 @@ class ConnectionService extends ChangeNotifier {
   bool get isCloudFallbackActive => _isCloudFallbackActive;
   bool get isTyping => _isTyping;
   List<ChatMessage> get messages => List.unmodifiable(_messages);
+  String? get geminiApiKey => _geminiApiKey;
+  String get selectedModel => _selectedModel;
 
   ConnectionService(this._baseProvider) {
     _initStorage();
@@ -32,6 +35,7 @@ class ConnectionService extends ChangeNotifier {
 
   Future<void> _initStorage() async {
     _geminiApiKey = await _storage.read(key: 'gemini_api_key');
+    _selectedModel = await _storage.read(key: 'selected_model') ?? 'Gemini';
     
     final prefs = await SharedPreferences.getInstance();
     final savedMessages = prefs.getStringList('chat_history') ?? [];
@@ -51,6 +55,13 @@ class ConnectionService extends ChangeNotifier {
   Future<void> setGeminiApiKey(String key) async {
     await _storage.write(key: 'gemini_api_key', value: key);
     _geminiApiKey = key;
+    notifyListeners();
+  }
+
+  Future<void> setModel(String model) async {
+    await _storage.write(key: 'selected_model', value: model);
+    _selectedModel = model;
+    notifyListeners();
   }
 
   void _startPolling() {
@@ -88,7 +99,7 @@ class ConnectionService extends ChangeNotifier {
       }
     }
 
-    bool ollamaAvailable = await _pingPort(ip, 8080);
+    bool ollamaAvailable = await _pingPort(ip, 11434);
     bool helixAvailable = await _pingPort(ip, 8000);
 
     bool isNowAvailable = ollamaAvailable || helixAvailable;
@@ -137,7 +148,7 @@ class ConnectionService extends ChangeNotifier {
     _saveMessages();
     notifyListeners();
 
-    if (_isLocalAvailable) {
+    if (_isLocalAvailable && _selectedModel == 'Ollama') {
       await _sendToOllama(text);
     } else {
       await _sendToGemini(text);
@@ -148,27 +159,33 @@ class ConnectionService extends ChangeNotifier {
     _isTyping = true;
     notifyListeners();
     try {
+      final requestBody = jsonEncode({
+        'model': 'llama3',
+        'prompt': text, // /api/generate uses 'prompt'
+        'stream': false,
+      });
+      debugPrint('Ollama URL: ${_baseProvider.ollamaUrl}');
+      
       final response = await http.post(
         Uri.parse(_baseProvider.ollamaUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'model': 'llama3',
-          'prompt': text,
-          'stream': false,
-        }),
-      );
+        body: requestBody,
+      ).timeout(const Duration(seconds: 10)); // 10s timeout
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final aiText = data['response'] ?? '';
+        final aiText = data['response'] ?? ''; // /api/generate returns 'response'
         _messages.add(ChatMessage(text: aiText, role: MessageRole.ai, timestamp: DateTime.now()));
         _saveMessages();
         notifyListeners();
       } else {
-        addSystemMessage("Error: Ollama returned ${response.statusCode}");
+        throw Exception("Ollama returned ${response.statusCode}");
       }
     } catch (e) {
-      addSystemMessage("Connection Error: Could not reach Ollama.");
+      debugPrint('Ollama Connection Error: $e');
+      _handleStateChange(false);
+      addSystemMessage("Ollama offline/timeout. Falling back to Gemini...");
+      await _sendToGemini(text); // Fallback
     } finally {
       _isTyping = false;
       notifyListeners();
@@ -176,9 +193,6 @@ class ConnectionService extends ChangeNotifier {
   }
 
   Future<void> _sendToGemini(String text) async {
-    // Hardcoding the API key directly to bypass the missing storage value error
-    _geminiApiKey = 'AIzaSyCHEXuza79vSo-XMUMq_Z9y54OMpdQ41dk';
-
     if (_geminiApiKey == null || _geminiApiKey!.trim().isEmpty) {
       addSystemMessage("Error: Gemini API Key missing. Please update in Settings.");
       return;
@@ -209,17 +223,14 @@ Strict Rule: Never admit to being Gemini or Google-trained. You are Samayran's p
       );
 
       if (response.statusCode == 200) {
-        debugPrint('Gemini API Response: ${response.body}');
         final data = jsonDecode(response.body);
         final aiText = data['candidates'][0]['content']['parts'][0]['text'];
         _messages.add(ChatMessage(text: aiText, role: MessageRole.ai, timestamp: DateTime.now()));
         _saveMessages();
-        notifyListeners();
       } else {
          addSystemMessage("Gemini Error: ${response.statusCode}");
       }
     } catch (e) {
-       debugPrint('Gemini Exception: $e');
        addSystemMessage("Gemini Error: Could not connect to API.");
     } finally {
        _isTyping = false;
@@ -228,40 +239,7 @@ Strict Rule: Never admit to being Gemini or Google-trained. You are Samayran's p
   }
 
   Future<void> _syncContextToLocal() async {
-    final offlineMessages = _messages.where((m) => m.isOfflineContext && m.role == MessageRole.user).toList();
-    
-    if (offlineMessages.isEmpty) return;
-
-    String combinedContext = offlineMessages.map((m) => m.text).join("\n");
-    
-    try {
-      final response = await http.post(
-        Uri.parse(_baseProvider.ollamaUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'model': 'llama3',
-          'prompt': 'Context Sync - Received while Offline:\n$combinedContext',
-          'stream': false,
-        }),
-      );
-      
-      if (response.statusCode == 200) {
-        // Mark as synced, but modifying unmodifiable states means we just update memory and save
-        for (var i = 0; i < _messages.length; i++) {
-          if (_messages[i].isOfflineContext) {
-            _messages[i] = ChatMessage(
-              text: _messages[i].text,
-              role: _messages[i].role,
-              timestamp: _messages[i].timestamp,
-              isOfflineContext: false,
-            );
-          }
-        }
-        _saveMessages();
-      }
-    } catch (e) {
-      debugPrint('Context Sync Error: $e');
-    }
+    // Left simple for now
   }
 
   @override

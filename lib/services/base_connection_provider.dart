@@ -34,7 +34,7 @@ class BaseConnectionProvider extends ChangeNotifier {
   }
 
   // Dynamic URI Formats
-  String get ollamaUrl => 'http://$_hostIP:8080/api/generate';
+  String get ollamaUrl => 'http://$_hostIP:11434/api/generate';
   String get executeUrl => 'http://$_hostIP:8000/execute';
   String get telemetryWsUrl => 'ws://$_hostIP:8000/ws/stats';
 }

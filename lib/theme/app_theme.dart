@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 enum AppThemeType {
   helixPrime,
@@ -44,10 +45,15 @@ class AppThemes {
       accentColor: Colors.cyanAccent,
       themeData: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: Colors.black,
+        textTheme: GoogleFonts.orbitronTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
         colorScheme: const ColorScheme.dark().copyWith(
           primary: Colors.cyanAccent,
           secondary: Colors.cyanAccent,
           surface: const Color(0xFF1A1A1A),
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF1A1A1A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         ),
       ),
     ),
@@ -56,15 +62,20 @@ class AppThemes {
       name: 'Glassmorphism',
       backgroundColor: const Color(0xFF0D1B2A),
       auraColor: const Color(0xFF415A77),
-      chatBackgroundColor: const Color(0x40FFFFFF), // Translucent
+      chatBackgroundColor: const Color(0x40FFFFFF),
       textColor: Colors.white,
       accentColor: const Color(0xFF778DA9),
       themeData: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0D1B2A),
+        textTheme: GoogleFonts.robotoTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
         colorScheme: const ColorScheme.dark().copyWith(
           primary: const Color(0xFF778DA9),
           secondary: const Color(0xFF415A77),
           surface: const Color(0x40FFFFFF),
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0x40FFFFFF),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
     ),
@@ -78,10 +89,15 @@ class AppThemes {
       accentColor: Colors.greenAccent,
       themeData: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF121212),
+        textTheme: GoogleFonts.orbitronTextTheme(ThemeData.dark().textTheme).apply(bodyColor: const Color(0xFFE0E0E0), displayColor: const Color(0xFFE0E0E0)),
         colorScheme: const ColorScheme.dark().copyWith(
           primary: Colors.greenAccent,
           secondary: Colors.greenAccent,
           surface: const Color(0xFF1E1E1E),
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     ),
@@ -95,10 +111,15 @@ class AppThemes {
       accentColor: const Color(0xFF448AFF),
       themeData: ThemeData.light().copyWith(
         scaffoldBackgroundColor: Colors.white,
+        textTheme: GoogleFonts.robotoTextTheme(ThemeData.light().textTheme).apply(bodyColor: Colors.black87, displayColor: Colors.black87),
         colorScheme: const ColorScheme.light().copyWith(
           primary: const Color(0xFF448AFF),
           secondary: const Color(0xFF82B1FF),
           surface: const Color(0xFFF5F5F5),
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFFF5F5F5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     ),
@@ -112,10 +133,15 @@ class AppThemes {
       accentColor: Colors.grey,
       themeData: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF1C1C1C),
+        textTheme: GoogleFonts.robotoTextTheme(ThemeData.dark().textTheme).apply(bodyColor: const Color(0xFFE0E0E0), displayColor: const Color(0xFFE0E0E0)),
         colorScheme: const ColorScheme.dark().copyWith(
           primary: Colors.grey,
           secondary: const Color(0xFF9E9E9E),
           surface: const Color(0xFF2C2C2C),
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF2C2C2C),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
         ),
       ),
     ),
@@ -129,10 +155,15 @@ class AppThemes {
       accentColor: Colors.redAccent,
       themeData: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF212121),
+        textTheme: GoogleFonts.orbitronTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
         colorScheme: const ColorScheme.dark().copyWith(
           primary: Colors.redAccent,
           secondary: const Color(0xFFD50000),
           surface: const Color(0xFF303030),
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF303030),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     ),
@@ -146,10 +177,15 @@ class AppThemes {
       accentColor: Colors.white,
       themeData: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: Colors.black,
+        textTheme: GoogleFonts.robotoTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
         colorScheme: const ColorScheme.dark().copyWith(
           primary: Colors.white,
           secondary: Colors.white,
           surface: Colors.black,
+        ),
+        cardTheme: CardThemeData(
+          color: Colors.black,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white24)),
         ),
       ),
     ),

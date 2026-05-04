@@ -10,8 +10,14 @@ import 'services/telemetry_service.dart';
 import 'services/command_service.dart';
 import 'services/intent_router.dart';
 
-void main() {
+import 'services/notification_service.dart';
+
+import 'package:flutter/services.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+  await NotificationService.initialize();
   
   runApp(
     MultiProvider(

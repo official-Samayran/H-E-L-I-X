@@ -11,6 +11,9 @@ class TelemetryData {
   final double gpu;
   final double temp;
   final double disk;
+  final double fanSpeed;
+  final String topRamApp;
+  final String topCpuApp;
 
   TelemetryData({
     this.cpu = 0,
@@ -18,6 +21,9 @@ class TelemetryData {
     this.gpu = 0,
     this.temp = 0,
     this.disk = 0,
+    this.fanSpeed = 0,
+    this.topRamApp = "N/A",
+    this.topCpuApp = "N/A",
   });
 
   factory TelemetryData.fromJson(Map<String, dynamic> json) {
@@ -27,6 +33,9 @@ class TelemetryData {
       gpu: (json['gpu'] ?? 0).toDouble(),
       temp: (json['temp'] ?? 0).toDouble(),
       disk: (json['disk'] ?? 0).toDouble(),
+      fanSpeed: (json['fanSpeed'] ?? 0).toDouble(),
+      topRamApp: json['topRamApp'] ?? "N/A",
+      topCpuApp: json['topCpuApp'] ?? "N/A",
     );
   }
 }
@@ -39,9 +48,11 @@ class TelemetryService extends ChangeNotifier {
 
   bool _isWsConnected = false;
   TelemetryData _currentData = TelemetryData();
+  final List<TelemetryData> _history = [];
 
   bool get isWsConnected => _isWsConnected;
   TelemetryData get currentData => _currentData;
+  List<TelemetryData> get history => List.unmodifiable(_history);
 
   TelemetryService(this._baseProvider) {
     _baseProvider.addListener(_onProviderChange);
@@ -59,6 +70,10 @@ class TelemetryService extends ChangeNotifier {
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_baseProvider.telemetryWsUrl));
       
+      _channel?.ready.catchError((error) {
+        _handleDisconnect();
+      });
+
       _subscription = _channel?.stream.listen(
         (message) {
           if (!_isWsConnected) {
@@ -67,6 +82,12 @@ class TelemetryService extends ChangeNotifier {
           }
           final decoded = jsonDecode(message);
           _currentData = TelemetryData.fromJson(decoded);
+          
+          _history.add(_currentData);
+          if (_history.length > 60) {
+            _history.removeAt(0);
+          }
+          
           notifyListeners();
         },
         onError: (error) {
