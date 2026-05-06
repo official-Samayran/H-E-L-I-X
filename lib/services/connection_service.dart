@@ -23,8 +23,9 @@ class ConnectionService extends ChangeNotifier {
   bool _isCloudFallbackActive = true;
   bool _isTyping = false;
   String? _geminiApiKey;
-  String _selectedModel = 'Gemini'; // Defaults to Gemini
+  String _selectedModel = 'Ollama'; // Defaults to Ollama for automatic fallback
   String _systemPrompt = '';
+  Map<String, String> _customPersonas = {};
   
   final _storage = const FlutterSecureStorage();
   final List<ChatMessage> _messages = [];
@@ -37,6 +38,7 @@ class ConnectionService extends ChangeNotifier {
   String? get geminiApiKey => _geminiApiKey;
   String get selectedModel => _selectedModel;
   String get systemPrompt => _systemPrompt;
+  Map<String, String> get customPersonas => Map.unmodifiable(_customPersonas);
 
   ConnectionService(this._baseProvider) {
     _initStorage();
@@ -55,6 +57,16 @@ class ConnectionService extends ChangeNotifier {
     }
     
     final prefs = await SharedPreferences.getInstance();
+    
+    final savedPersonas = prefs.getString('custom_personas');
+    if (savedPersonas != null) {
+      try {
+        _customPersonas = Map<String, String>.from(jsonDecode(savedPersonas));
+      } catch (e) {
+        _customPersonas = {};
+      }
+    }
+    
     final savedMessages = prefs.getStringList('chat_history') ?? [];
     
     if (savedMessages.isNotEmpty) {
@@ -85,6 +97,22 @@ class ConnectionService extends ChangeNotifier {
     await _storage.write(key: 'system_prompt', value: prompt);
     _systemPrompt = prompt;
     notifyListeners();
+  }
+
+  Future<void> saveCustomPersona(String name, String prompt) async {
+    _customPersonas[name] = prompt;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('custom_personas', jsonEncode(_customPersonas));
+    notifyListeners();
+  }
+
+  Future<void> deleteCustomPersona(String name) async {
+    if (_customPersonas.containsKey(name)) {
+      _customPersonas.remove(name);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('custom_personas', jsonEncode(_customPersonas));
+      notifyListeners();
+    }
   }
 
   void _startPolling() {
@@ -158,24 +186,31 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> sendMessage(String text) async {
-    if (text.isEmpty) return;
+  Future<void> sendMessage(String text, {String? attachmentPath, bool isImage = false}) async {
+    if (text.trim().isEmpty && attachmentPath == null) return;
+    
+    final msgText = text.trim().isEmpty ? "Attached file" : text.trim();
+    addUserMessage(msgText, attachmentPath: attachmentPath, isImage: isImage);
 
+    if (_isLocalAvailable && _selectedModel == 'Ollama') {
+      await _sendToOllama(msgText);
+    } else {
+      await _sendToGemini(msgText);
+    }
+  }
+
+  void addUserMessage(String text, {String? attachmentPath, bool isImage = false}) {
     final userMessage = ChatMessage(
       text: text, 
       role: MessageRole.user, 
       timestamp: DateTime.now(),
       isOfflineContext: _isCloudFallbackActive,
+      attachmentPath: attachmentPath,
+      isImageAttachment: isImage,
     );
     _messages.add(userMessage);
     _saveMessages();
     notifyListeners();
-
-    if (_isLocalAvailable && _selectedModel == 'Ollama') {
-      await _sendToOllama(text);
-    } else {
-      await _sendToGemini(text);
-    }
   }
 
   Future<void> _sendToOllama(String text) async {

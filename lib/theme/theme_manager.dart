@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'app_theme.dart';
 export 'app_theme.dart';
 
 class ThemeManager extends ChangeNotifier {
-  AppThemeType _currentThemeType = AppThemeType.helixPrime;
+  AppThemeType _currentThemeType = AppThemeType.oled;
   bool _fpsSyncLock = false;
   double _uiScale = 1.0;
-  int _fontWeightIndex = 3; // Default to w400
+  double _hapticIntensity = 0.5;
+  bool _showFpsCounter = false;
 
   AppThemeType get currentThemeType => _currentThemeType;
   bool get fpsSyncLock => _fpsSyncLock;
   double get uiScale => _uiScale;
-  FontWeight get fontWeight => FontWeight.values[_fontWeightIndex];
+  double get hapticIntensity => _hapticIntensity;
+  bool get showFpsCounter => _showFpsCounter;
   
   AppThemeData get currentTheme => AppThemes.themes[_currentThemeType]!;
 
@@ -36,10 +39,29 @@ class ThemeManager extends ChangeNotifier {
     }
   }
 
-  void setFontWeightIndex(int index) {
-    if (_fontWeightIndex != index) {
-      _fontWeightIndex = index;
+  void setHapticIntensity(double intensity) {
+    if (_hapticIntensity != intensity) {
+      _hapticIntensity = intensity;
       notifyListeners();
+    }
+  }
+
+  void toggleFpsCounter(bool value) {
+    if (_showFpsCounter != value) {
+      _showFpsCounter = value;
+      notifyListeners();
+    }
+  }
+
+  void triggerHaptic() {
+    if (_hapticIntensity == 0.0) return;
+    
+    if (_hapticIntensity >= 0.8) {
+      HapticFeedback.heavyImpact();
+    } else if (_hapticIntensity >= 0.4) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.lightImpact();
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,14 +58,55 @@ class ChatBubble extends StatelessWidget {
                     border: Border.all(color: theme.accentColor.withOpacity(0.5), width: 1),
                   )) : null,
             child: isUser 
-                ? Text(
-                    message.text,
-                    style: DefaultTextStyle.of(context).style.copyWith(
-                      color: theme.textColor,
-                      fontSize: 16,
-                      height: 1.4,
-                      letterSpacing: 0.0,
-                    ),
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (message.attachmentPath != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: message.isImageAttachment
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(
+                                    File(message.attachmentPath!),
+                                    height: 150,
+                                    width: 200,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: theme.textColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.insert_drive_file, color: theme.accentColor),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          message.attachmentPath!.split('/').last,
+                                          style: TextStyle(color: theme.textColor, fontSize: 12),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                        ),
+                      Text(
+                        message.text,
+                        style: DefaultTextStyle.of(context).style.copyWith(
+                          color: theme.textColor,
+                          fontSize: 16,
+                          height: 1.4,
+                          letterSpacing: 0.0,
+                        ),
+                      ),
+                    ],
                   )
                 : _buildMarkdown(context, theme, message.text + (isStreaming ? ' █' : '')),
           ),
@@ -269,7 +311,7 @@ class CodeElementBuilder extends MarkdownElementBuilder {
                 GestureDetector(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: textContent));
-                    HapticFeedback.lightImpact();
+                    theme.triggerHaptic();
                   },
                   child: Row(
                     children: [

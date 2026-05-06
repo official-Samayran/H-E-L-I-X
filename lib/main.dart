@@ -12,6 +12,7 @@ import 'services/intent_router.dart';
 
 import 'services/notification_service.dart';
 import 'widgets/adaptive_ui.dart';
+import 'widgets/fps_monitor.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 
@@ -82,7 +83,7 @@ class HelixApp extends StatelessWidget {
                 home: const HomeScreen(),
                 builder: (context, child) {
                   final mediaQueryData = MediaQuery.of(context);
-                  return MediaQuery(
+                  Widget appChild = MediaQuery(
                     data: mediaQueryData.copyWith(
                       textScaler: TextScaler.linear(themeManager.uiScale),
                     ),
@@ -91,12 +92,16 @@ class HelixApp extends StatelessWidget {
                       curve: Curves.easeInOut,
                       style: TextStyle(
                         fontFamily: themeManager.themeData.textTheme.bodyMedium?.fontFamily,
-                        fontWeight: themeManager.fontWeight,
                         color: themeManager.textColor,
                       ),
                       child: child ?? const SizedBox(),
                     ),
                   );
+
+                  if (themeManager.showFpsCounter) {
+                    return FpsMonitor(child: appChild);
+                  }
+                  return appChild;
                 },
               );
             }

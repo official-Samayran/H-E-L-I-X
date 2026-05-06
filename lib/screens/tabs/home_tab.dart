@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -30,6 +31,10 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   bool _isChatExpanded = false;
   bool _isUtilityExpanded = false;
   
+  String? _pendingAttachmentPath;
+  bool _pendingAttachmentIsImage = false;
+  String? _pendingAttachmentName;
+
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   late stt.SpeechToText _speech;
@@ -53,7 +58,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
       try {
         _hapticChannel.invokeMethod('vibrateWaveform');
       } catch (e) {
-        HapticFeedback.lightImpact();
+        Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
       }
     }
     
@@ -114,36 +119,51 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   }
 
   void _handleInput([String? overrideText]) async {
-    final text = overrideText ?? _chatController.text;
-    if (text.isEmpty) return;
-
-    _chatController.clear();
+    final rawText = overrideText ?? _chatController.text;
+    final text = rawText.trim();
+    if (text.isEmpty && _pendingAttachmentPath == null) return;
     
-    // Auto-expand chat if not already expanded
-    if (!_isChatExpanded) {
-      setState(() {
-        _isChatExpanded = true;
-        _isUtilityExpanded = false;
-      });
-    }
-
     final connectionService = Provider.of<ConnectionService>(context, listen: false);
 
-    // Lumos/Nox intercept (mock hardware)
-    if (text.toLowerCase().contains('helix, lumos') || text.toLowerCase().contains('helix, nox')) {
-      connectionService.addSystemMessage("Hardware: Executed Flashlight Command -> ${text.split(',').last.trim()}");
-      return;
+    if (text.isNotEmpty) {
+      // Lumos/Nox intercept (mock hardware)
+      if (text.toLowerCase().contains('helix, lumos') || text.toLowerCase().contains('helix, nox')) {
+        connectionService.addSystemMessage("Hardware: Executed Flashlight Command -> ${text.split(',').last.trim()}");
+        setState(() {
+          _chatController.clear();
+          _pendingAttachmentPath = null;
+          _pendingAttachmentName = null;
+        });
+        return;
+      }
+
+      final router = Provider.of<IntentRouter>(context, listen: false);
+      final intent = await router.routeInput(text, connectionService.isLocalAvailable);
+      
+      if (intent == IntentType.systemCommand) {
+        connectionService.addSystemMessage("Executed system command: $text");
+        setState(() {
+          _chatController.clear();
+          _pendingAttachmentPath = null;
+          _pendingAttachmentName = null;
+        });
+        return;
+      }
     }
 
-    final router = Provider.of<IntentRouter>(context, listen: false);
-    final intent = await router.routeInput(text, connectionService.isLocalAvailable);
+    await connectionService.sendMessage(
+      text, 
+      attachmentPath: _pendingAttachmentPath, 
+      isImage: _pendingAttachmentIsImage
+    );
     
-    if (intent == IntentType.systemCommand) {
-      connectionService.addSystemMessage("Executed system command: $text");
-    } else {
-      await connectionService.sendMessage(text);
-    }
-
+    setState(() {
+      _chatController.clear();
+      _pendingAttachmentPath = null;
+      _pendingAttachmentName = null;
+      if (!_isChatExpanded) _isChatExpanded = true;
+    });
+    
     Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
   }
 
@@ -151,19 +171,29 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     final picker = ImagePicker();
     final file = await picker.pickImage(source: source);
     if (file != null) {
+      setState(() {
+        _pendingAttachmentPath = file.path;
+        _pendingAttachmentIsImage = true;
+        _pendingAttachmentName = file.name;
+        _isUtilityExpanded = false;
+      });
       if (!_isChatExpanded) setState(() => _isChatExpanded = true);
-      final connectionService = Provider.of<ConnectionService>(context, listen: false);
-      connectionService.addSystemMessage("Attached image: ${file.name}");
-      // In a real app, we'd send this to the AI or upload it.
     }
   }
 
   Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles();
     if (result != null && result.files.isNotEmpty) {
-      if (!_isChatExpanded) setState(() => _isChatExpanded = true);
-      final connectionService = Provider.of<ConnectionService>(context, listen: false);
-      connectionService.addSystemMessage("Attached file: ${result.files.first.name}");
+      final filePath = result.files.first.path;
+      if (filePath != null) {
+        setState(() {
+          _pendingAttachmentPath = filePath;
+          _pendingAttachmentIsImage = false;
+          _pendingAttachmentName = result.files.first.name;
+          _isUtilityExpanded = false;
+        });
+        if (!_isChatExpanded) setState(() => _isChatExpanded = true);
+      }
     }
   }
 
@@ -491,11 +521,11 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 400),
         curve: Curves.elasticOut,
-        height: 60,
+        constraints: const BoxConstraints(minHeight: 60),
         decoration: BoxDecoration(
           color: themeManager.currentThemeType == AppThemeType.oled 
-              ? Colors.grey.shade900 
-              : themeManager.backgroundColor,
+              ? Colors.black.withOpacity(0.8) 
+              : themeManager.backgroundColor.withOpacity(0.7),
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
@@ -527,21 +557,54 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   }
 
   Widget _buildDefaultInput(ThemeManager themeManager) {
-    return Row(
+    return Column(
       key: const ValueKey('default_input'),
+      mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(width: 8),
-        IconButton(
-          icon: Icon(Icons.add_rounded, color: themeManager.textColor.withOpacity(0.7)),
-          onPressed: () {
-            setState(() {
-              _isUtilityExpanded = true;
-            });
-            HapticFeedback.lightImpact();
-          },
-        ),
-        Expanded(
-          child: TextField(
+        if (_pendingAttachmentPath != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 12),
+            child: Row(
+              children: [
+                _pendingAttachmentIsImage
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.file(File(_pendingAttachmentPath!), height: 40, width: 40, fit: BoxFit.cover),
+                      )
+                    : Icon(Icons.insert_drive_file, color: themeManager.accentColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _pendingAttachmentName ?? '',
+                    style: TextStyle(color: themeManager.textColor, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: themeManager.textColor.withOpacity(0.5), size: 16),
+                  onPressed: () => setState(() {
+                    _pendingAttachmentPath = null;
+                    _pendingAttachmentName = null;
+                  }),
+                ),
+              ],
+            ),
+          ),
+        Row(
+          children: [
+            const SizedBox(width: 8),
+            IconButton(
+              icon: Icon(Icons.add_rounded, color: themeManager.textColor.withOpacity(0.7)),
+              onPressed: () {
+                setState(() {
+                  _isUtilityExpanded = true;
+                });
+                Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
+              },
+            ),
+            Expanded(
+              child: TextField(
             controller: _chatController,
             style: TextStyle(color: themeManager.textColor),
             decoration: InputDecoration(
@@ -574,6 +637,8 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
             onPressed: _handleInput,
           ),
         ),
+          ],
+        ),
       ],
     );
   }
@@ -589,7 +654,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
             setState(() {
               _isUtilityExpanded = false;
             });
-            HapticFeedback.lightImpact();
+            Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
           },
         ),
         IconButton(
@@ -620,33 +685,37 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
       bottom: 0,
       left: 0,
       right: 0,
-      child: Container(
-        color: themeManager.backgroundColor,
-        child: Column(
-          children: [
-            // Chat Header
-            SafeArea(
-              bottom: false,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Helix Chat', style: TextStyle(color: themeManager.textColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                    IconButton(
-                      icon: Icon(Icons.keyboard_arrow_down, color: themeManager.textColor),
-                      onPressed: () {
-                        setState(() {
-                          _isChatExpanded = false;
-                          FocusScope.of(context).unfocus();
-                        });
-                        HapticFeedback.mediumImpact();
-                      },
-                    )
-                  ],
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            color: themeManager.currentThemeType == AppThemeType.oled 
+                ? Colors.black.withOpacity(0.8) 
+                : themeManager.chatBackgroundColor.withOpacity(0.9),
+            child: Column(
+              children: [
+                // Chat Header
+                SafeArea(
+                  bottom: false,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.keyboard_arrow_down, color: themeManager.textColor),
+                          onPressed: () {
+                            setState(() {
+                              _isChatExpanded = false;
+                              FocusScope.of(context).unfocus();
+                            });
+                            Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
+                          },
+                        )
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
             // Messages
             Expanded(
               child: Stack(
@@ -702,6 +771,8 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
             ),
           ],
         ),
+      ),
+      ),
       ),
     );
   }

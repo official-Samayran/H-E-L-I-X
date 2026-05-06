@@ -5,12 +5,16 @@ class ChatMessage {
   final MessageRole role;
   final DateTime timestamp;
   final bool isOfflineContext;
+  final String? attachmentPath;
+  final bool isImageAttachment;
 
   ChatMessage({
     required this.text,
     required this.role,
     required this.timestamp,
     this.isOfflineContext = false,
+    this.attachmentPath,
+    this.isImageAttachment = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -19,6 +23,8 @@ class ChatMessage {
       'role': role.index,
       'timestamp': timestamp.toIso8601String(),
       'isOfflineContext': isOfflineContext,
+      'attachmentPath': attachmentPath,
+      'isImageAttachment': isImageAttachment,
     };
   }
 
@@ -28,6 +34,8 @@ class ChatMessage {
       role: MessageRole.values[json['role']],
       timestamp: DateTime.parse(json['timestamp']),
       isOfflineContext: json['isOfflineContext'] ?? false,
+      attachmentPath: json['attachmentPath'],
+      isImageAttachment: json['isImageAttachment'] ?? false,
     );
   }
 

@@ -31,17 +31,16 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
   Timer? _inactivityTimer;
 
   // Toggle states
-  bool _masterSwipe = true;
-  bool _motionBlur = true;
-  bool _neonEdge = false;
-  bool _particleBg = false;
-  final bool _asciiMode = false;
-  bool _fpsSyncLock = false;
-  bool _voiceFlashlight = false;
-  bool _weatherAura = true;
-  bool _lowLatency = false;
   bool _secureScreen = false;
-  double _hapticIntensity = 0.5;
+  bool _fpsSyncLock = false;
+  
+  // New Functional Toggles
+  bool _markdownParsing = true;
+  bool _autoScroll = true;
+  bool _typingCursor = true;
+  
+  bool _hardwareAccel = true;
+  bool _bgPolling = true;
   
   final PageController _pageController = PageController(viewportFraction: 0.9);
   int _currentPage = 0;
@@ -67,8 +66,16 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
       _secureScreen = prefs.getBool('secure_screen_protocol') ?? false;
       _fpsSyncLock = prefs.getBool('fps_sync_lock') ?? false;
     });
-    if (_fpsSyncLock && mounted) {
-      Provider.of<ThemeManager>(context, listen: false).toggleFpsSyncLock(_fpsSyncLock);
+    if (mounted) {
+      final theme = Provider.of<ThemeManager>(context, listen: false);
+      if (_fpsSyncLock) theme.toggleFpsSyncLock(_fpsSyncLock);
+      setState(() {
+        _markdownParsing = prefs.getBool('markdown_parsing') ?? true;
+        _autoScroll = prefs.getBool('auto_scroll') ?? true;
+        _typingCursor = prefs.getBool('typing_cursor') ?? true;
+        _hardwareAccel = prefs.getBool('hardware_accel') ?? true;
+        _bgPolling = prefs.getBool('bg_polling') ?? true;
+      });
     }
   }
 
@@ -168,50 +175,50 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
     super.dispose();
   }
 
-  Widget _buildNeonToggle(String label, bool value, ValueChanged<bool> onChanged, ThemeManager theme) {
+  Future<void> _toggleGeneric(String key, bool value, Function(bool) stateSetter) async {
+    _resetInactivityTimer();
+    stateSetter(value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
+
+  Widget _buildControlCenterTile(String label, IconData icon, bool value, ValueChanged<bool> onChanged, ThemeManager theme) {
     return GestureDetector(
       onTap: () {
         _resetInactivityTimer();
         onChanged(!value);
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        margin: const EdgeInsets.only(bottom: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 105,
+        height: 105,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: theme.chatBackgroundColor,
-          borderRadius: BorderRadius.circular(16),
+          color: value ? theme.accentColor : theme.chatBackgroundColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: value ? theme.accentColor : theme.textColor.withOpacity(0.05),
+            width: 1,
+          ),
+          boxShadow: value ? [BoxShadow(color: theme.accentColor.withOpacity(0.3), blurRadius: 15, spreadRadius: 1)] : [],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(label, style: TextStyle(color: theme.textColor, fontSize: 14)),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 48,
-              height: 24,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: value ? theme.accentColor.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
-                border: Border.all(
-                  color: value ? theme.accentColor : Colors.grey.withOpacity(0.5),
-                  width: 1,
-                ),
-                boxShadow: value ? [BoxShadow(color: theme.accentColor.withOpacity(0.5), blurRadius: 8, spreadRadius: 1)] : [],
-              ),
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 200),
-                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: value ? theme.accentColor : Colors.grey,
-                    ),
-                  ),
-                ),
+            Icon(
+              icon,
+              size: 28,
+              color: value ? theme.backgroundColor : theme.textColor.withOpacity(0.7),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              style: TextStyle(
+                color: value ? theme.backgroundColor : theme.textColor.withOpacity(0.9),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -271,7 +278,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
             physics: const BouncingScrollPhysics(),
             onPageChanged: (index) {
               setState(() => _currentPage = index);
-              HapticFeedback.lightImpact();
+              Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
             },
             children: [
               _buildGlassCard(theme, 'Aesthetics & UI', _buildAestheticsContent(theme)),
@@ -303,18 +310,27 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
 
   Widget _buildIconIndicator(int index, IconData icon, ThemeManager theme) {
     final isActive = _currentPage == index;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.all(isActive ? 10 : 6),
-      decoration: BoxDecoration(
-        color: isActive ? theme.accentColor.withOpacity(0.2) : Colors.transparent,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        icon,
-        size: isActive ? 24 : 16,
-        color: isActive ? theme.accentColor : theme.textColor.withOpacity(0.4),
+    return GestureDetector(
+      onTap: () {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.all(isActive ? 10 : 6),
+        decoration: BoxDecoration(
+          color: isActive ? theme.accentColor.withOpacity(0.2) : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: isActive ? 24 : 16,
+          color: isActive ? theme.accentColor : theme.textColor.withOpacity(0.4),
+        ),
       ),
     );
   }
@@ -428,50 +444,47 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
           ],
         ),
       ),
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      const SizedBox(height: 16),
+      Center(
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            Text('Font Weight: ${theme.fontWeight.toString()}', style: TextStyle(color: theme.textColor, fontSize: 14)),
-            Slider(
-              value: theme.fontWeight.index.toDouble(),
-              min: 0,
-              max: 8,
-              divisions: 8,
-              activeColor: theme.accentColor,
-              inactiveColor: theme.accentColor.withOpacity(0.2),
-              onChanged: (val) {
-                _resetInactivityTimer();
-                Provider.of<ThemeManager>(context, listen: false).setFontWeightIndex(val.toInt());
-              },
-            ),
+            _buildControlCenterTile('Markdown Parsing', Icons.code, _markdownParsing, (v) => _toggleGeneric('markdown_parsing', v, (val) => setState(() => _markdownParsing = val)), theme),
+            _buildControlCenterTile('Auto-Scroll', Icons.arrow_downward, _autoScroll, (v) => _toggleGeneric('auto_scroll', v, (val) => setState(() => _autoScroll = val)), theme),
+            _buildControlCenterTile('Typing Cursor', Icons.keyboard, _typingCursor, (v) => _toggleGeneric('typing_cursor', v, (val) => setState(() => _typingCursor = val)), theme),
           ],
         ),
       ),
-      _buildNeonToggle('Master Swipe Mode', _masterSwipe, (v) => setState(() => _masterSwipe = v), theme),
-      _buildNeonToggle('Motion Blur', _motionBlur, (v) => setState(() => _motionBlur = v), theme),
-      _buildNeonToggle('Neon Edge Lighting', _neonEdge, (v) => setState(() => _neonEdge = v), theme),
-      _buildNeonToggle('Particle Background', _particleBg, (v) => setState(() => _particleBg = v), theme),
     ];
   }
 
   List<Widget> _buildHardwareContent(ThemeManager theme) {
     return [
-      _buildNeonToggle('Secure Screen Protocol', _secureScreen, _toggleSecureScreen, theme),
-      _buildNeonToggle('Low-Latency Mode', _lowLatency, (v) => setState(() => _lowLatency = v), theme),
-      _buildNeonToggle('144 FPS Sync Lock', _fpsSyncLock, _toggleFpsSyncLock, theme),
-      _buildNeonToggle('Voice Flashlight (Lumos)', _voiceFlashlight, (v) => setState(() => _voiceFlashlight = v), theme),
-      _buildNeonToggle('Weather-Aura Sync', _weatherAura, (v) => setState(() => _weatherAura = v), theme),
+      Center(
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _buildControlCenterTile('Secure Screen', Icons.security, _secureScreen, _toggleSecureScreen, theme),
+            _buildControlCenterTile('144 FPS Lock', Icons.speed, _fpsSyncLock, _toggleFpsSyncLock, theme),
+            _buildControlCenterTile('FPS Counter', Icons.monitor, theme.showFpsCounter, (v) => theme.toggleFpsCounter(v), theme),
+            _buildControlCenterTile('Hardware Accel', Icons.memory, _hardwareAccel, (v) => _toggleGeneric('hardware_accel', v, (val) => setState(() => _hardwareAccel = val)), theme),
+            _buildControlCenterTile('Background Polling', Icons.sync, _bgPolling, (v) => _toggleGeneric('bg_polling', v, (val) => setState(() => _bgPolling = val)), theme),
+          ],
+        ),
+      ),
       Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.only(top: 24, bottom: 8),
         child: Text('Haptic Intensity', style: TextStyle(color: theme.textColor, fontSize: 14)),
       ),
       Slider(
-        value: _hapticIntensity,
+        value: theme.hapticIntensity,
         onChanged: (v) {
           _resetInactivityTimer();
-          setState(() => _hapticIntensity = v);
+          theme.setHapticIntensity(v);
         },
         activeColor: theme.accentColor,
         inactiveColor: theme.textColor.withOpacity(0.1),
@@ -500,8 +513,6 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
       const SizedBox(height: 16),
       _buildField('MAC Address (WoL)', _macController, theme),
       const SizedBox(height: 32),
-      _buildModelSelector(context, theme),
-      const SizedBox(height: 16),
       _buildField('Gemini API Key', _apiKeyController, theme, obscureText: true),
       const SizedBox(height: 32),
       ElevatedButton(
@@ -545,40 +556,74 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
     );
   }
 
-  Widget _buildModelSelector(BuildContext context, ThemeManager theme) {
-    final connectionService = Provider.of<ConnectionService>(context);
-    return DropdownButtonFormField<String>(
-      initialValue: connectionService.selectedModel,
-      dropdownColor: theme.chatBackgroundColor,
-      style: TextStyle(color: theme.textColor),
-      onChanged: (String? value) {
-        _resetInactivityTimer();
-        if (value != null) {
-          connectionService.setModel(value);
-        }
+  void _showSavePersonaDialog(ThemeManager theme, ConnectionService connectionService) {
+    final TextEditingController nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: theme.chatBackgroundColor,
+          title: Text('Save New Persona', style: TextStyle(color: theme.textColor)),
+          content: TextField(
+            controller: nameController,
+            style: TextStyle(color: theme.textColor),
+            decoration: InputDecoration(
+              hintText: 'e.g., Creative Writer',
+              hintStyle: TextStyle(color: theme.textColor.withOpacity(0.5)),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('CANCEL', style: TextStyle(color: theme.textColor.withOpacity(0.6))),
+            ),
+            TextButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                if (name.isNotEmpty) {
+                  connectionService.saveCustomPersona(name, _personalizationController.text.trim());
+                  setState(() {
+                    _selectedPreset = name;
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              child: Text('SAVE', style: TextStyle(color: theme.accentColor)),
+            ),
+          ],
+        );
       },
-      decoration: InputDecoration(
-        labelText: 'AI Engine',
-        labelStyle: TextStyle(color: theme.textColor.withOpacity(0.6)),
-        filled: true,
-        fillColor: theme.chatBackgroundColor,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      items: const [
-        DropdownMenuItem(value: 'Gemini', child: Text('Gemini Cloud')),
-        DropdownMenuItem(value: 'Ollama', child: Text('Local Ollama (11434)')),
-      ],
     );
   }
 
   List<Widget> _buildPersonalizationContent(ThemeManager theme) {
+    final connectionService = Provider.of<ConnectionService>(context);
+    final customPersonas = connectionService.customPersonas;
+
+    List<DropdownMenuItem<String>> dropdownItems = [
+      const DropdownMenuItem(value: 'Custom', child: Text('Custom Persona')),
+      const DropdownMenuItem(value: 'Default Helix', child: Text('Default Helix')),
+      const DropdownMenuItem(value: 'Developer Brain', child: Text('Developer Brain')),
+      const DropdownMenuItem(value: 'Strict Assistant', child: Text('Strict Assistant')),
+    ];
+
+    for (var entry in customPersonas.entries) {
+      dropdownItems.add(DropdownMenuItem(value: entry.key, child: Text(entry.key)));
+    }
+
+    // Ensure _selectedPreset is in the list
+    bool presetExists = dropdownItems.any((item) => item.value == _selectedPreset);
+    if (!presetExists) {
+      _selectedPreset = 'Custom';
+    }
+
     return [
-      DropdownButtonFormField<String>(
-        value: _selectedPreset,
-        dropdownColor: theme.chatBackgroundColor,
+      Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: _selectedPreset,
+              dropdownColor: theme.chatBackgroundColor,
         style: TextStyle(color: theme.textColor),
         onChanged: (String? value) {
           _resetInactivityTimer();
@@ -595,22 +640,42 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
                 case 'Strict Assistant':
                   _personalizationController.text = 'Identity: You are an extremely formal and highly strict digital assistant. You only answer exactly what is asked. You use professional, robotic language.';
                   break;
+                default:
+                  if (customPersonas.containsKey(value)) {
+                    _personalizationController.text = customPersonas[value]!;
+                  }
+                  break;
               }
             });
           }
         },
-        decoration: InputDecoration(
-          labelText: 'Persona Preset',
-          labelStyle: TextStyle(color: theme.textColor.withOpacity(0.6)),
-          filled: true,
-          fillColor: theme.chatBackgroundColor,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        ),
-        items: const [
-          DropdownMenuItem(value: 'Custom', child: Text('Custom Persona')),
-          DropdownMenuItem(value: 'Default Helix', child: Text('Default Helix')),
-          DropdownMenuItem(value: 'Developer Brain', child: Text('Developer Brain')),
-          DropdownMenuItem(value: 'Strict Assistant', child: Text('Strict Assistant')),
+              decoration: InputDecoration(
+                labelText: 'Persona Preset',
+                labelStyle: TextStyle(color: theme.textColor.withOpacity(0.6)),
+                filled: true,
+                fillColor: theme.chatBackgroundColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+              items: dropdownItems,
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(Icons.add_circle_outline, color: theme.accentColor),
+            tooltip: 'Save as New Persona',
+            onPressed: () => _showSavePersonaDialog(theme, connectionService),
+          ),
+          if (customPersonas.containsKey(_selectedPreset))
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              tooltip: 'Delete Persona',
+              onPressed: () {
+                connectionService.deleteCustomPersona(_selectedPreset);
+                setState(() {
+                  _selectedPreset = 'Custom';
+                });
+              },
+            ),
         ],
       ),
       const SizedBox(height: 16),

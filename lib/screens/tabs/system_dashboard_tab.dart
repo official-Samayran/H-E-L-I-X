@@ -59,7 +59,7 @@ class _SystemDashboardTabState extends State<SystemDashboardTab> {
             physics: const BouncingScrollPhysics(),
             onPageChanged: (index) {
               setState(() => _currentPage = index);
-              HapticFeedback.lightImpact();
+              Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
             },
             children: cards,
           ),
@@ -218,7 +218,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
   final DateTime _startTime = DateTime.now();
 
   void _flipTo(int type) {
-    HapticFeedback.mediumImpact();
+    Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
     if (_isFlipped && _backViewType == type) {
       setState(() => _isFlipped = false);
     } else {
@@ -369,7 +369,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
               IconButton(
                 icon: Icon(Icons.arrow_back, color: theme.textColor),
                 onPressed: () {
-                  HapticFeedback.lightImpact();
+                  Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
                   setState(() => _isFlipped = false);
                 },
               ),
@@ -601,7 +601,7 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
       _batterySubscription = _battery.onBatteryStateChanged.listen((_) async {
         if (mounted) {
           final level = await _battery.batteryLevel;
-          setState(() => _batteryLevel = level);
+          if (mounted) setState(() => _batteryLevel = level);
         }
       });
 
@@ -634,7 +634,7 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
   }
 
   void _flipTo(int type) {
-    HapticFeedback.mediumImpact();
+    Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
     if (_isFlipped && _backViewType == type) {
       setState(() => _isFlipped = false);
     } else {
@@ -783,7 +783,7 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
               IconButton(
                 icon: Icon(Icons.arrow_back, color: theme.textColor),
                 onPressed: () {
-                  HapticFeedback.lightImpact();
+                  Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
                   setState(() => _isFlipped = false);
                 },
               ),
