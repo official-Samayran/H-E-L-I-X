@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <application
-        android:label="helix"
+        android:label="H E L I X"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
