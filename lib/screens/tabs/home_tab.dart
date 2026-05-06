@@ -1,0 +1,745 @@
+import 'dart:math';
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+
+import '../../theme/theme_manager.dart';
+import '../../widgets/animated_aura.dart';
+import '../../services/connection_service.dart';
+import '../../services/intent_router.dart';
+import '../../models/chat_message.dart';
+import '../../widgets/chat_bubble.dart';
+import '../search_results_screen.dart';
+
+class HomeTab extends StatefulWidget {
+  const HomeTab({super.key});
+
+  @override
+  State<HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
+  int _currentSection = 0; // 0 for Productivity, 1 for Control Center
+  final PageController _pageController = PageController();
+  
+  // Chat Bar State
+  bool _isChatExpanded = false;
+  bool _isUtilityExpanded = false;
+  
+  final TextEditingController _chatController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
+
+  double _lastHapticOffset = 0.0;
+  bool _showScrollToBottom = false;
+  static const MethodChannel _hapticChannel = MethodChannel('com.example.helix/haptics');
+  static const MethodChannel _screenShareChannel = MethodChannel('com.example.helix/screenshare');
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = stt.SpeechToText();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if ((_scrollController.offset - _lastHapticOffset).abs() > 50) {
+      _lastHapticOffset = _scrollController.offset;
+      try {
+        _hapticChannel.invokeMethod('vibrateWaveform');
+      } catch (e) {
+        HapticFeedback.lightImpact();
+      }
+    }
+    
+    if (_scrollController.hasClients) {
+      final isNearBottom = _scrollController.position.maxScrollExtent - _scrollController.offset <= 100;
+      if (_showScrollToBottom == isNearBottom) {
+        setState(() {
+          _showScrollToBottom = !isNearBottom;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _chatController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _listen() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) {
+          if (val == 'done' || val == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (val) => setState(() => _isListening = false),
+      );
+      if (available) {
+        setState(() => _isListening = true);
+        _speech.listen(
+          onResult: (val) => setState(() {
+            _chatController.text = val.recognizedWords;
+          }),
+        );
+      }
+    } else {
+      setState(() => _isListening = false);
+      _speech.stop();
+      if (_chatController.text.isNotEmpty) {
+        _handleInput();
+      }
+    }
+  }
+
+  void _handleInput([String? overrideText]) async {
+    final text = overrideText ?? _chatController.text;
+    if (text.isEmpty) return;
+
+    _chatController.clear();
+    
+    // Auto-expand chat if not already expanded
+    if (!_isChatExpanded) {
+      setState(() {
+        _isChatExpanded = true;
+        _isUtilityExpanded = false;
+      });
+    }
+
+    final connectionService = Provider.of<ConnectionService>(context, listen: false);
+
+    // Lumos/Nox intercept (mock hardware)
+    if (text.toLowerCase().contains('helix, lumos') || text.toLowerCase().contains('helix, nox')) {
+      connectionService.addSystemMessage("Hardware: Executed Flashlight Command -> ${text.split(',').last.trim()}");
+      return;
+    }
+
+    final router = Provider.of<IntentRouter>(context, listen: false);
+    final intent = await router.routeInput(text, connectionService.isLocalAvailable);
+    
+    if (intent == IntentType.systemCommand) {
+      connectionService.addSystemMessage("Executed system command: $text");
+    } else {
+      await connectionService.sendMessage(text);
+    }
+
+    Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: source);
+    if (file != null) {
+      if (!_isChatExpanded) setState(() => _isChatExpanded = true);
+      final connectionService = Provider.of<ConnectionService>(context, listen: false);
+      connectionService.addSystemMessage("Attached image: ${file.name}");
+      // In a real app, we'd send this to the AI or upload it.
+    }
+  }
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.pickFiles();
+    if (result != null && result.files.isNotEmpty) {
+      if (!_isChatExpanded) setState(() => _isChatExpanded = true);
+      final connectionService = Provider.of<ConnectionService>(context, listen: false);
+      connectionService.addSystemMessage("Attached file: ${result.files.first.name}");
+    }
+  }
+
+  Future<void> _startScreenShare() async {
+    try {
+      await _screenShareChannel.invokeMethod('startScreenShare');
+      if (!_isChatExpanded) setState(() => _isChatExpanded = true);
+      final connectionService = Provider.of<ConnectionService>(context, listen: false);
+      connectionService.addSystemMessage("Screen sharing session initiated.");
+    } catch (e) {
+      final connectionService = Provider.of<ConnectionService>(context, listen: false);
+      connectionService.addSystemMessage("Failed to start screen share: $e");
+    }
+  }
+
+  Widget _buildGlassCard({required Widget child, required ThemeManager themeManager, double? height, double? width, EdgeInsetsGeometry? padding}) {
+    return Container(
+      height: height,
+      width: width,
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: themeManager.currentThemeType == AppThemeType.oled 
+            ? Colors.black 
+            : themeManager.chatBackgroundColor.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: themeManager.textColor.withOpacity(0.05),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          )
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductivitySection(ThemeManager themeManager) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildGlassCard(
+                themeManager: themeManager,
+                height: 140,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_month, color: themeManager.accentColor, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Reminders', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const Spacer(),
+                    Center(child: Text('No upcoming reminders', style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12))),
+                    const Spacer(),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildGlassCard(
+                themeManager: themeManager,
+                height: 140,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle_outline, color: themeManager.accentColor, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Todo List', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const Spacer(),
+                    Center(child: Text('All tasks completed', style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12))),
+                    const Spacer(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildGlassCard(
+          themeManager: themeManager,
+          height: 180,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.notes, color: themeManager.accentColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Quick Notes', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const Spacer(),
+              Center(child: Text('Tap to jot down a note', style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12))),
+              const Spacer(),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildGlassCard(
+          themeManager: themeManager,
+          height: 120,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.history, color: themeManager.accentColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Recent Activity', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const Spacer(),
+              Center(child: Text('No recent activity detected', style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12))),
+              const Spacer(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildControlCenterSection(ThemeManager themeManager) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+      children: [
+        _buildGlassCard(
+          themeManager: themeManager,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.memory, color: themeManager.accentColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text('PC Status', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text('ONLINE', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStat(themeManager, 'CPU', '34%'),
+                  _buildStat(themeManager, 'RAM', '12GB'),
+                  _buildStat(themeManager, 'GPU', '45°C'),
+                ],
+              )
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildGlassCard(
+                themeManager: themeManager,
+                height: 120,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.rocket_launch, color: themeManager.accentColor, size: 24),
+                    const Spacer(),
+                    Text('Quick Launch', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+                    Text('Ready', style: TextStyle(color: themeManager.textColor.withOpacity(0.5), fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildGlassCard(
+                themeManager: themeManager,
+                height: 120,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.smart_toy, color: themeManager.accentColor, size: 24),
+                    const Spacer(),
+                    Text('AI Provider', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+                    Text('Gemini Flash', style: TextStyle(color: themeManager.textColor.withOpacity(0.5), fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildGlassCard(
+          themeManager: themeManager,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Media Controls', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(onPressed: () {}, icon: Icon(Icons.skip_previous, color: themeManager.textColor)),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: themeManager.accentColor.withOpacity(0.2),
+                    ),
+                    child: IconButton(onPressed: () {}, icon: Icon(Icons.play_arrow, color: themeManager.accentColor, size: 32)),
+                  ),
+                  IconButton(onPressed: () {}, icon: Icon(Icons.skip_next, color: themeManager.textColor)),
+                ],
+              )
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStat(ThemeManager themeManager, String label, String val) {
+    return Column(
+      children: [
+        Text(val, style: TextStyle(color: themeManager.textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(color: themeManager.textColor.withOpacity(0.5), fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _buildSegmentedControl(ThemeManager themeManager) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 44,
+      decoration: BoxDecoration(
+        color: themeManager.currentThemeType == AppThemeType.oled 
+            ? Colors.black 
+            : themeManager.chatBackgroundColor.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: themeManager.textColor.withOpacity(0.1)),
+      ),
+      child: Stack(
+        children: [
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            left: _currentSection == 0 ? 0 : (MediaQuery.of(context).size.width - 34) / 2,
+            width: (MediaQuery.of(context).size.width - 34) / 2,
+            height: 42,
+            child: Container(
+              decoration: BoxDecoration(
+                color: themeManager.textColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(21),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    setState(() => _currentSection = 0);
+                    _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+                  },
+                  child: Center(
+                    child: Text('Productivity', style: TextStyle(
+                      color: _currentSection == 0 ? themeManager.textColor : themeManager.textColor.withOpacity(0.5),
+                      fontWeight: FontWeight.bold,
+                    )),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    setState(() => _currentSection = 1);
+                    _pageController.animateToPage(1, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+                  },
+                  child: Center(
+                    child: Text('Control Center', style: TextStyle(
+                      color: _currentSection == 1 ? themeManager.textColor : themeManager.textColor.withOpacity(0.5),
+                      fontWeight: FontWeight.bold,
+                    )),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatBar(ThemeManager themeManager) {
+    return Positioned(
+      bottom: 24,
+      left: 16,
+      right: 16,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.elasticOut,
+        height: 60,
+        decoration: BoxDecoration(
+          color: themeManager.currentThemeType == AppThemeType.oled 
+              ? Colors.grey.shade900 
+              : themeManager.backgroundColor,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: themeManager.accentColor.withOpacity(0.1),
+              blurRadius: 20,
+              spreadRadius: 2,
+            )
+          ],
+          border: Border.all(color: themeManager.textColor.withOpacity(0.1)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(scale: animation, child: child),
+                );
+              },
+              child: _isUtilityExpanded ? _buildUtilityDock(themeManager) : _buildDefaultInput(themeManager),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultInput(ThemeManager themeManager) {
+    return Row(
+      key: const ValueKey('default_input'),
+      children: [
+        const SizedBox(width: 8),
+        IconButton(
+          icon: Icon(Icons.add_rounded, color: themeManager.textColor.withOpacity(0.7)),
+          onPressed: () {
+            setState(() {
+              _isUtilityExpanded = true;
+            });
+            HapticFeedback.lightImpact();
+          },
+        ),
+        Expanded(
+          child: TextField(
+            controller: _chatController,
+            style: TextStyle(color: themeManager.textColor),
+            decoration: InputDecoration(
+              hintText: 'Message Helix...',
+              hintStyle: TextStyle(color: themeManager.textColor.withOpacity(0.4)),
+              border: InputBorder.none,
+            ),
+            onSubmitted: (_) => _handleInput(),
+            onTap: () {
+              if (!_isChatExpanded) {
+                setState(() {
+                  _isChatExpanded = true;
+                });
+              }
+            },
+          ),
+        ),
+        IconButton(
+          icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: _isListening ? Colors.redAccent : themeManager.textColor.withOpacity(0.7)),
+          onPressed: _listen,
+        ),
+        Container(
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: themeManager.accentColor,
+            shape: BoxShape.circle,
+          ),
+          child: IconButton(
+            icon: Icon(Icons.arrow_upward, color: themeManager.backgroundColor, size: 20),
+            onPressed: _handleInput,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUtilityDock(ThemeManager themeManager) {
+    return Row(
+      key: const ValueKey('utility_dock'),
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          icon: Icon(Icons.close, color: themeManager.textColor.withOpacity(0.5)),
+          onPressed: () {
+            setState(() {
+              _isUtilityExpanded = false;
+            });
+            HapticFeedback.lightImpact();
+          },
+        ),
+        IconButton(
+          icon: Icon(Icons.camera_alt_outlined, color: themeManager.textColor),
+          onPressed: () => _pickImage(ImageSource.camera),
+        ),
+        IconButton(
+          icon: Icon(Icons.photo_library_outlined, color: themeManager.textColor),
+          onPressed: () => _pickImage(ImageSource.gallery),
+        ),
+        IconButton(
+          icon: Icon(Icons.folder_open, color: themeManager.textColor),
+          onPressed: _pickFile,
+        ),
+        IconButton(
+          icon: Icon(Icons.screen_share_outlined, color: themeManager.textColor),
+          onPressed: _startScreenShare,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExpandedChat(ThemeManager themeManager, ConnectionService connectionService) {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOutQuint,
+      top: _isChatExpanded ? 0 : MediaQuery.of(context).size.height,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        color: themeManager.backgroundColor,
+        child: Column(
+          children: [
+            // Chat Header
+            SafeArea(
+              bottom: false,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Helix Chat', style: TextStyle(color: themeManager.textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: Icon(Icons.keyboard_arrow_down, color: themeManager.textColor),
+                      onPressed: () {
+                        setState(() {
+                          _isChatExpanded = false;
+                          FocusScope.of(context).unfocus();
+                        });
+                        HapticFeedback.mediumImpact();
+                      },
+                    )
+                  ],
+                ),
+              ),
+            ),
+            // Messages
+            Expanded(
+              child: Stack(
+                children: [
+                  ListView.builder(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: connectionService.messages.length,
+                    itemBuilder: (context, index) {
+                      final message = connectionService.messages[index];
+                      final isLast = index == connectionService.messages.length - 1;
+                      final isStreaming = connectionService.isTyping && isLast && message.role == MessageRole.ai;
+                      return ChatBubble(message: message, isStreaming: isStreaming);
+                    },
+                  ),
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: AnimatedScale(
+                      scale: _showScrollToBottom ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutBack,
+                      child: FloatingActionButton(
+                        mini: true,
+                        backgroundColor: themeManager.accentColor.withOpacity(0.8),
+                        elevation: 4,
+                        onPressed: _scrollToBottom,
+                        child: Icon(Icons.keyboard_arrow_down, color: themeManager.backgroundColor),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Chat Input for Expanded Mode
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              decoration: BoxDecoration(
+                color: themeManager.chatBackgroundColor,
+                border: Border(top: BorderSide(color: themeManager.textColor.withOpacity(0.05))),
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(scale: animation, child: child),
+                  );
+                },
+                child: _isUtilityExpanded ? _buildUtilityDock(themeManager) : _buildDefaultInput(themeManager),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeManager = Provider.of<ThemeManager>(context);
+    final connectionService = Provider.of<ConnectionService>(context);
+
+    return Stack(
+      children: [
+        // Background Aura
+        if (themeManager.currentThemeType != AppThemeType.oled)
+          Center(child: AnimatedAura(color: themeManager.auraColor)),
+
+        // Main Content
+        Column(
+          children: [
+            _buildSegmentedControl(themeManager),
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) => setState(() => _currentSection = index),
+                children: [
+                  _buildProductivitySection(themeManager),
+                  _buildControlCenterSection(themeManager),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        // Toast Chat Bar
+        if (!_isChatExpanded) _buildChatBar(themeManager),
+
+        // Expanded Chat Overlay
+        _buildExpandedChat(themeManager, connectionService),
+      ],
+    );
+  }
+}

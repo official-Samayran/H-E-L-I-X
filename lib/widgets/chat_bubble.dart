@@ -1,6 +1,11 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:flutter_highlighter/flutter_highlighter.dart';
+import 'package:flutter_highlighter/themes/atom-one-dark.dart';
 import '../theme/theme_manager.dart';
 import '../models/chat_message.dart';
 import 'package:add_2_calendar/add_2_calendar.dart';
@@ -8,8 +13,9 @@ import 'adaptive_ui.dart';
 
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
+  final bool isStreaming;
 
-  const ChatBubble({super.key, required this.message});
+  const ChatBubble({super.key, required this.message, this.isStreaming = false});
 
   @override
   Widget build(BuildContext context) {
@@ -29,45 +35,38 @@ class ChatBubble extends StatelessWidget {
         children: [
           Container(
             margin: EdgeInsets.symmetric(vertical: 6.s(context)),
-            padding: EdgeInsets.symmetric(horizontal: 16.s(context), vertical: 12.s(context)),
+            padding: isUser 
+                ? EdgeInsets.symmetric(horizontal: 16.s(context), vertical: 12.s(context))
+                : EdgeInsets.symmetric(horizontal: 4.s(context), vertical: 4.s(context)),
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
+              maxWidth: MediaQuery.of(context).size.width * (isUser ? 0.75 : 0.95),
             ),
-            decoration: theme.currentThemeType == AppThemeType.oled 
+            decoration: isUser ? (theme.currentThemeType == AppThemeType.oled 
                 ? BoxDecoration(
-                    color: theme.textColor.withOpacity(0.02),
+                    color: theme.textColor.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(16).copyWith(
-                      bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
-                      bottomLeft: !isUser && !isSystem ? const Radius.circular(4) : const Radius.circular(16),
+                      bottomRight: const Radius.circular(4),
                     ),
-                    border: Border.all(
-                      color: theme.textColor.withOpacity(0.15),
-                      width: 1,
-                    ),
+                    border: Border.all(color: theme.textColor.withOpacity(0.15), width: 1),
                   )
                 : BoxDecoration(
-                    color: isSystem
-                        ? theme.chatBackgroundColor.withOpacity(0.5)
-                        : (isUser ? theme.accentColor.withOpacity(0.2) : theme.chatBackgroundColor),
+                    color: theme.accentColor.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(theme.borderRadius).copyWith(
-                      bottomRight: isUser ? Radius.circular(4) : Radius.circular(theme.borderRadius),
-                      bottomLeft: !isUser && !isSystem ? Radius.circular(4) : Radius.circular(theme.borderRadius),
+                      bottomRight: const Radius.circular(4),
                     ),
-                    border: Border.all(
-                      color: isSystem 
-                          ? theme.textColor.withOpacity(0.1) 
-                          : (isUser ? theme.accentColor.withOpacity(0.5) : theme.chatBackgroundColor),
-                      width: 1,
+                    border: Border.all(color: theme.accentColor.withOpacity(0.5), width: 1),
+                  )) : null,
+            child: isUser 
+                ? Text(
+                    message.text,
+                    style: DefaultTextStyle.of(context).style.copyWith(
+                      color: theme.textColor,
+                      fontSize: 16,
+                      height: 1.4,
+                      letterSpacing: 0.0,
                     ),
-                  ),
-            child: Text(
-              message.text,
-              style: DefaultTextStyle.of(context).style.copyWith(
-                color: isSystem ? theme.textColor.withOpacity(0.5) : theme.textColor,
-                fontSize: isSystem ? 12 : 14,
-                letterSpacing: isSystem ? 1.0 : 0.0,
-              ),
-            ),
+                  )
+                : _buildMarkdown(context, theme, message.text + (isStreaming ? ' █' : '')),
           ),
           if (message.hasTaskIntent)
             Padding(
@@ -95,6 +94,41 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
+  Widget _buildMarkdown(BuildContext context, ThemeManager theme, String text) {
+    return MarkdownBody(
+      data: text,
+      selectable: true,
+      styleSheet: MarkdownStyleSheet(
+        h1: TextStyle(color: theme.textColor, fontSize: 32, fontWeight: FontWeight.bold),
+        h2: TextStyle(color: theme.textColor, fontSize: 26, fontWeight: FontWeight.bold),
+        h3: TextStyle(color: theme.textColor, fontSize: 20, fontWeight: FontWeight.bold),
+        p: TextStyle(color: theme.textColor, fontSize: 16, height: 1.6),
+        listBullet: TextStyle(color: theme.textColor, fontSize: 16),
+        code: TextStyle(
+          color: theme.accentColor,
+          backgroundColor: Colors.transparent,
+          fontFamily: 'monospace',
+          fontSize: 14,
+        ),
+        codeblockDecoration: const BoxDecoration(
+          color: Colors.transparent,
+        ),
+        blockquoteDecoration: BoxDecoration(
+          border: Border(left: BorderSide(color: theme.accentColor, width: 4)),
+          color: theme.textColor.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        blockquote: TextStyle(color: theme.textColor.withOpacity(0.8), fontStyle: FontStyle.italic),
+        tableBorder: TableBorder.all(color: theme.textColor.withOpacity(0.1), width: 1, borderRadius: BorderRadius.circular(8)),
+        tableBody: TextStyle(color: theme.textColor),
+        tableHead: TextStyle(color: theme.textColor, fontWeight: FontWeight.bold),
+      ),
+      builders: {
+        'code': CodeElementBuilder(theme: theme),
+      },
+    );
+  }
+
   Widget _buildAsciiBubble(BuildContext context, ThemeManager theme, bool isUser, bool isSystem) {
     const int maxChars = 32;
     List<String> lines = [];
@@ -112,14 +146,14 @@ class ChatBubble extends StatelessWidget {
             if (i + maxChars < word.length) {
               lines.add(word.substring(i, i + maxChars));
             } else {
-              currentLine = word.substring(i) + ' ';
+              currentLine = '\${word.substring(i)} ';
             }
           }
         } else {
-          currentLine = word + ' ';
+          currentLine = '$word ';
         }
       } else {
-        currentLine += word + ' ';
+        currentLine += '$word ';
       }
     }
     if (currentLine.isNotEmpty) {
@@ -167,6 +201,104 @@ class ChatBubble extends StatelessWidget {
                 style: TextStyle(color: theme.accentColor, fontFamily: 'monospace', fontSize: 10),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class CodeElementBuilder extends MarkdownElementBuilder {
+  final ThemeManager theme;
+  CodeElementBuilder({required this.theme});
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final String textContent = element.textContent;
+    String language = 'plaintext';
+
+    if (element.attributes['class'] != null) {
+      String lg = element.attributes['class'] as String;
+      if (lg.startsWith('language-')) {
+        language = lg.substring(9);
+      }
+    }
+
+    if (!textContent.contains('\n')) {
+      // Inline code
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: theme.textColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          textContent,
+          style: TextStyle(
+            color: theme.accentColor,
+            fontFamily: 'monospace',
+            fontSize: 14,
+          ),
+        ),
+      );
+    }
+
+    // Fenced Code Block
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF282C34), // atom one dark bg
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.textColor.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.4),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  language.toUpperCase(),
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: textContent));
+                    HapticFeedback.lightImpact();
+                  },
+                  child: Row(
+                    children: [
+                      Icon(Icons.copy, size: 14, color: Colors.white.withOpacity(0.5)),
+                      const SizedBox(width: 4),
+                      Text('Copy', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(16),
+              child: HighlightView(
+                textContent,
+                language: language,
+                theme: atomOneDarkTheme,
+                textStyle: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

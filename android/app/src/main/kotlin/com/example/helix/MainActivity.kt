@@ -12,6 +12,8 @@ import android.view.WindowManager
 import android.view.Surface
 import android.os.Vibrator
 import android.os.VibrationEffect
+import android.media.projection.MediaProjectionManager
+import android.content.Intent
 
 class MainActivity: FlutterFragmentActivity() {
     private val CHANNEL = "com.example.helix/secure"
@@ -57,6 +59,16 @@ class MainActivity: FlutterFragmentActivity() {
                 } else {
                     result.error("UNAVAILABLE", "Vibrator not available.", null)
                 }
+            } else {
+                result.notImplemented()
+            }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.helix/screenshare").setMethodCallHandler { call, result ->
+            if (call.method == "startScreenShare") {
+                val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), 1000)
+                result.success(true)
             } else {
                 result.notImplemented()
             }

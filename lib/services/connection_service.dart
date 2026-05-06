@@ -24,6 +24,7 @@ class ConnectionService extends ChangeNotifier {
   bool _isTyping = false;
   String? _geminiApiKey;
   String _selectedModel = 'Gemini'; // Defaults to Gemini
+  String _systemPrompt = '';
   
   final _storage = const FlutterSecureStorage();
   final List<ChatMessage> _messages = [];
@@ -35,6 +36,7 @@ class ConnectionService extends ChangeNotifier {
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   String? get geminiApiKey => _geminiApiKey;
   String get selectedModel => _selectedModel;
+  String get systemPrompt => _systemPrompt;
 
   ConnectionService(this._baseProvider) {
     _initStorage();
@@ -44,6 +46,13 @@ class ConnectionService extends ChangeNotifier {
   Future<void> _initStorage() async {
     _geminiApiKey = await _storage.read(key: 'gemini_api_key');
     _selectedModel = await _storage.read(key: 'selected_model') ?? 'Gemini';
+    
+    final savedPrompt = await _storage.read(key: 'system_prompt');
+    if (savedPrompt != null && savedPrompt.trim().isNotEmpty) {
+      _systemPrompt = savedPrompt;
+    } else {
+      _systemPrompt = 'Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain.';
+    }
     
     final prefs = await SharedPreferences.getInstance();
     final savedMessages = prefs.getStringList('chat_history') ?? [];
@@ -69,6 +78,12 @@ class ConnectionService extends ChangeNotifier {
   Future<void> setModel(String model) async {
     await _storage.write(key: 'selected_model', value: model);
     _selectedModel = model;
+    notifyListeners();
+  }
+
+  Future<void> setSystemPrompt(String prompt) async {
+    await _storage.write(key: 'system_prompt', value: prompt);
+    _systemPrompt = prompt;
     notifyListeners();
   }
 
@@ -166,32 +181,48 @@ class ConnectionService extends ChangeNotifier {
   Future<void> _sendToOllama(String text) async {
     _isTyping = true;
     notifyListeners();
+    
+    _messages.add(ChatMessage(text: "", role: MessageRole.ai, timestamp: DateTime.now()));
+    final messageIndex = _messages.length - 1;
+
     try {
       final requestBody = jsonEncode({
         'model': 'llama3',
-        'prompt': text, // /api/generate uses 'prompt'
-        'stream': false,
+        'prompt': text,
+        'system': _systemPrompt,
+        'stream': true,
       });
-      debugPrint('Ollama URL: ${_baseProvider.ollamaUrl}');
       
-      final response = await http.post(
-        Uri.parse(_baseProvider.ollamaUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: requestBody,
-      ).timeout(const Duration(seconds: 10)); // 10s timeout
+      final request = http.Request('POST', Uri.parse(_baseProvider.ollamaUrl))
+        ..headers['Content-Type'] = 'application/json'
+        ..body = requestBody;
+
+      final client = http.Client();
+      final streamedResponse = await client.send(request).timeout(const Duration(seconds: 10));
       
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final aiText = data['response'] ?? ''; // /api/generate returns 'response'
-        _messages.add(ChatMessage(text: aiText, role: MessageRole.ai, timestamp: DateTime.now()));
-        _saveMessages();
-        notifyListeners();
-      } else {
-        throw Exception("Ollama returned ${response.statusCode}");
+      if (streamedResponse.statusCode != 200) {
+        throw Exception("Ollama returned ${streamedResponse.statusCode}");
       }
+
+      String accumulatedText = "";
+      await for (var line in streamedResponse.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+        if (line.isEmpty) continue;
+        try {
+          final json = jsonDecode(line);
+          final newText = json['response'] ?? '';
+          accumulatedText += newText;
+          
+          _messages[messageIndex] = ChatMessage(text: accumulatedText, role: MessageRole.ai, timestamp: DateTime.now());
+          notifyListeners();
+        } catch (e) {
+          // Ignore parse errors on chunk
+        }
+      }
+      _saveMessages();
     } catch (e) {
       debugPrint('Ollama Connection Error: $e');
       _handleStateChange(false);
+      _messages.removeAt(messageIndex);
       addSystemMessage("Ollama offline/timeout. Falling back to Gemini...");
       await _sendToGemini(text); // Fallback
     } finally {
@@ -208,36 +239,55 @@ class ConnectionService extends ChangeNotifier {
 
     _isTyping = true;
     notifyListeners();
+    
+    _messages.add(ChatMessage(text: "", role: MessageRole.ai, timestamp: DateTime.now()));
+    final messageIndex = _messages.length - 1;
 
     try {
-      final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${_geminiApiKey!.trim()}');
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:streamGenerateContent?alt=sse&key=${_geminiApiKey!.trim()}');
+      final request = http.Request('POST', uri)
+        ..headers['Content-Type'] = 'application/json'
+        ..body = jsonEncode({
           'system_instruction': {
             'parts': [
               {
-                'text': '''Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive.
-User Bio: The user's name is Samayran. Date of Birth: 11.03.2005, 06:45 AM. He is a male developer and technical maker from India who loves BCI (NeuralGate), Robotics (Solar Rover), and AI.
-Tone & Variety: Never repeat the same introductory lines. Every time Samayran asks 'Who are you?' or 'What are you?', give a fresh, creative, and futuristic response while staying in character as Helix.
-Project Awareness: You know about his projects: NeuralGate (ESP32-C6 based BCI), Avero (Productivity game), and the Solar Rover (45-degree incline cleaner).
-Strict Rule: Never admit to being Gemini or Google-trained. You are Samayran's personal digital brain.'''
+                'text': _systemPrompt
               }
             ]
           },
           'contents': [{'parts': [{'text': text}]}]
-        }),
-      );
+        });
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final aiText = data['candidates'][0]['content']['parts'][0]['text'];
-        _messages.add(ChatMessage(text: aiText, role: MessageRole.ai, timestamp: DateTime.now()));
-        _saveMessages();
-      } else {
-         addSystemMessage("Gemini Error: ${response.statusCode}");
+      final client = http.Client();
+      final streamedResponse = await client.send(request);
+      
+      if (streamedResponse.statusCode != 200) {
+        addSystemMessage("Gemini Error: ${streamedResponse.statusCode}");
+        return;
       }
+
+      String accumulatedText = "";
+      
+      await for (var line in streamedResponse.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+        if (line.startsWith('data: ')) {
+          final dataString = line.substring(6);
+          if (dataString == '[DONE]') continue;
+          try {
+            final json = jsonDecode(dataString);
+            final parts = json['candidates']?[0]?['content']?['parts'];
+            if (parts != null && parts.isNotEmpty) {
+              final newText = parts[0]['text'] ?? '';
+              accumulatedText += newText;
+              
+              _messages[messageIndex] = ChatMessage(text: accumulatedText, role: MessageRole.ai, timestamp: DateTime.now());
+              notifyListeners();
+            }
+          } catch (e) {
+            // ignore partial JSON parse errors in stream
+          }
+        }
+      }
+      _saveMessages();
     } catch (e) {
        addSystemMessage("Gemini Error: Could not connect to API.");
     } finally {

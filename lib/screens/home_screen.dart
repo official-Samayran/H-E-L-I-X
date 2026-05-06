@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:battery_plus/battery_plus.dart';
 import '../theme/theme_manager.dart';
 import '../services/connection_service.dart';
-import 'tabs/chat_tab.dart';
+import 'tabs/home_tab.dart';
 import 'tabs/system_dashboard_tab.dart';
 import 'tabs/configuration_tab.dart';
 
@@ -96,14 +96,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   Text('$simulatedPing ms', style: TextStyle(color: themeManager.textColor.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
-              // Sync Gear
-              AnimatedBuilder(
-                animation: _gearController,
-                builder: (_, child) => Transform.rotate(
-                  angle: connectionService.isTyping ? _gearController.value * 2 * 3.14159 : 0,
-                  child: Icon(Icons.settings, size: 16, color: themeManager.accentColor),
-                ),
-              ),
               // Battery & Time
               Row(
                 children: [
@@ -142,14 +134,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     children: [
                       PageView(
                         controller: _pageController,
-                        physics: const NeverScrollableScrollPhysics(),
+                        physics: const BouncingScrollPhysics(),
                         onPageChanged: (index) {
                           setState(() {
                             _currentIndex = index;
                           });
                         },
                         children: const [
-                          ChatTab(),
+                          HomeTab(),
                           SystemDashboardTab(),
                           ConfigurationTab(),
                         ],
@@ -173,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     
     Widget targetPage;
     switch (_peekingTabIndex) {
-      case 0: targetPage = const ChatTab(); break;
+      case 0: targetPage = const HomeTab(); break;
       case 1: targetPage = const SystemDashboardTab(); break;
       case 2: targetPage = const ConfigurationTab(); break;
       default: targetPage = const SizedBox();
@@ -216,7 +208,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildGestureTabItem(0, Icons.chat_bubble_outline, Icons.chat_bubble, 'Chat', themeManager),
+          _buildGestureTabItem(0, Icons.home_outlined, Icons.home, 'Home', themeManager),
           _buildGestureTabItem(1, Icons.dashboard_outlined, Icons.dashboard, 'Dashboard', themeManager),
           _buildGestureTabItem(2, Icons.settings_outlined, Icons.settings, 'Config', themeManager),
         ],

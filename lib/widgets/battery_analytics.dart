@@ -100,7 +100,7 @@ class BatteryAnalytics extends StatelessWidget {
                 ),
               ],
             ),
-          )).toList(),
+          )),
         ],
       ),
     );

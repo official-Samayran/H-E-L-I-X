@@ -11,7 +11,6 @@ import 'services/command_service.dart';
 import 'services/intent_router.dart';
 
 import 'services/notification_service.dart';
-import 'widgets/fps_monitor.dart';
 import 'widgets/adaptive_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
@@ -57,7 +56,7 @@ void main() async {
         ),
         
         ProxyProvider<CommandService, IntentRouter>(
-          update: (_, command, __) => IntentRouter(command),
+          update: (_, command, _) => IntentRouter(command),
         ),
       ],
       child: const HelixApp(),
@@ -87,17 +86,15 @@ class HelixApp extends StatelessWidget {
                     data: mediaQueryData.copyWith(
                       textScaler: TextScaler.linear(themeManager.uiScale),
                     ),
-                    child: FpsMonitor(
-                      child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeInOut,
-                        style: TextStyle(
-                          fontFamily: themeManager.themeData.textTheme.bodyMedium?.fontFamily,
-                          fontWeight: themeManager.fontWeight,
-                          color: themeManager.textColor,
-                        ),
-                        child: child ?? const SizedBox(),
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeInOut,
+                      style: TextStyle(
+                        fontFamily: themeManager.themeData.textTheme.bodyMedium?.fontFamily,
+                        fontWeight: themeManager.fontWeight,
+                        color: themeManager.textColor,
                       ),
+                      child: child ?? const SizedBox(),
                     ),
                   );
                 },

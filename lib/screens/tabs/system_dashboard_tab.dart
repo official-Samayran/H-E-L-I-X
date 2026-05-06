@@ -1,17 +1,20 @@
 import 'dart:async';
+import 'dart:math';
+import 'dart:ui';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:shimmer/shimmer.dart';
-import '../../theme/theme_manager.dart';
-import '../../widgets/battery_analytics.dart';
-import '../../services/telemetry_service.dart';
-import '../../services/connection_service.dart';
-import '../sprint_log_screen.dart';
-
-import 'dart:io';
+import 'package:battery_plus/battery_plus.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:system_info2/system_info2.dart';
+
+import '../../theme/theme_manager.dart';
+import '../../services/telemetry_service.dart';
+import '../../services/connection_service.dart';
 
 class SystemDashboardTab extends StatefulWidget {
   const SystemDashboardTab({super.key});
@@ -21,291 +24,511 @@ class SystemDashboardTab extends StatefulWidget {
 }
 
 class _SystemDashboardTabState extends State<SystemDashboardTab> {
-  bool _showMobileTelemetry = false;
-  Map<String, String> _mobileSpecs = {};
+  final PageController _pageController = PageController(viewportFraction: 0.9);
+  int _currentPage = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeManager>(context);
+    final telemetry = Provider.of<TelemetryService>(context);
+    final isOnline = telemetry.isWsConnected;
+
+    final pcCard = const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      child: Center(child: PCTelemetryCard()),
+    );
+    final phoneCard = const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      child: Center(child: PhoneTelemetryCard()),
+    );
+
+    final cards = isOnline ? [pcCard, phoneCard] : [phoneCard, pcCard];
+
+    return Row(
+      children: [
+        Expanded(
+          child: PageView(
+            scrollDirection: Axis.vertical,
+            controller: _pageController,
+            physics: const BouncingScrollPhysics(),
+            onPageChanged: (index) {
+              setState(() => _currentPage = index);
+              HapticFeedback.lightImpact();
+            },
+            children: cards,
+          ),
+        ),
+        Container(
+          width: 32,
+          padding: const EdgeInsets.only(bottom: 120),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildDot(0, theme),
+              const SizedBox(height: 8),
+              _buildDot(1, theme),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDot(int index, ThemeManager theme) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      width: 8,
+      height: _currentPage == index ? 24 : 8,
+      decoration: BoxDecoration(
+        color: _currentPage == index ? theme.accentColor : theme.textColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 3D FLIP GLASS CARD
+// ---------------------------------------------------------
+class FlipGlassCard extends StatefulWidget {
+  final Widget front;
+  final Widget back;
+  final bool isFlipped;
+  final double height;
+
+  const FlipGlassCard({
+    super.key,
+    required this.front,
+    required this.back,
+    required this.isFlipped,
+    required this.height,
+  });
+
+  @override
+  State<FlipGlassCard> createState() => _FlipGlassCardState();
+}
+
+class _FlipGlassCardState extends State<FlipGlassCard> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _fetchMobileSpecs();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _animation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    if (widget.isFlipped) _controller.value = 1.0;
   }
 
-  Future<void> _fetchMobileSpecs() async {
-    final deviceInfo = DeviceInfoPlugin();
-    String model = "Unknown";
-    String kernel = "Unknown";
-    
-    if (Platform.isAndroid) {
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      model = "${androidInfo.manufacturer} ${androidInfo.model}";
-      kernel = androidInfo.version.release;
-    } else if (Platform.isIOS) {
-      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-      model = iosInfo.name;
-      kernel = iosInfo.systemVersion;
-    }
-
-    int freeRam = 0;
-    int totalRam = 0;
-    try {
-      freeRam = SysInfo.getFreePhysicalMemory();
-      totalRam = SysInfo.getTotalPhysicalMemory();
-    } catch (_) {}
-    
-    if (mounted) {
-      setState(() {
-        _mobileSpecs = {
-          "Model": model,
-          "Kernel/OS": kernel,
-          "Free RAM": freeRam > 0 ? "${(freeRam / 1024 / 1024 / 1024).toStringAsFixed(2)} GB" : "N/A",
-          "Total RAM": totalRam > 0 ? "${(totalRam / 1024 / 1024 / 1024).toStringAsFixed(2)} GB" : "N/A",
-        };
-      });
+  @override
+  void didUpdateWidget(FlipGlassCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isFlipped != oldWidget.isFlipped) {
+      if (widget.isFlipped) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
     }
   }
 
-  void _showTop10Popup(BuildContext context, ThemeManager theme, String resourceName) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: theme.chatBackgroundColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Top 10 Processes ($resourceName)',
-                style: TextStyle(color: theme.textColor, fontSize: 18, fontWeight: FontWeight.bold),
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeManager>(context);
+
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final angle = _animation.value * pi;
+        final isBack = angle > pi / 2;
+
+        return Transform(
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.001)
+            ..rotateY(angle),
+          alignment: Alignment.center,
+          child: Container(
+            height: widget.height,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: theme.currentThemeType == AppThemeType.oled
+                  ? Colors.black
+                  : theme.chatBackgroundColor.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: theme.textColor.withOpacity(0.05),
+                width: 1,
               ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: 10,
-                  itemBuilder: (context, index) {
-                    final names = ['chrome.exe', 'Code.exe', 'Discord.exe', 'Spotify.exe', 'explorer.exe', 'HelixEngine.exe', 'Dwm.exe', 'SearchApp.exe', 'Taskmgr.exe', 'svchost.exe'];
-                    return ListTile(
-                      leading: Text('#${index + 1}', style: TextStyle(color: theme.accentColor)),
-                      title: Text(names[index], style: TextStyle(color: theme.textColor, fontFamily: 'monospace')),
-                      trailing: Text('${(25.0 - index * 2.1).toStringAsFixed(1)}%', style: TextStyle(color: theme.textColor.withOpacity(0.7))),
-                    );
-                  },
-                ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                )
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: isBack
+                    ? Transform(
+                        transform: Matrix4.identity()..rotateY(pi),
+                        alignment: Alignment.center,
+                        child: widget.back,
+                      )
+                    : widget.front,
               ),
-            ],
+            ),
           ),
         );
       },
     );
   }
+}
+
+// ---------------------------------------------------------
+// PC TELEMETRY CARD
+// ---------------------------------------------------------
+class PCTelemetryCard extends StatefulWidget {
+  const PCTelemetryCard({super.key});
+
+  @override
+  State<PCTelemetryCard> createState() => _PCTelemetryCardState();
+}
+
+class _PCTelemetryCardState extends State<PCTelemetryCard> {
+  bool _isFlipped = false;
+  int _backViewType = 0; // 0: CPU, 1: Memory, 2: Hardware
+  final DateTime _startTime = DateTime.now();
+
+  void _flipTo(int type) {
+    HapticFeedback.mediumImpact();
+    if (_isFlipped && _backViewType == type) {
+      setState(() => _isFlipped = false);
+    } else {
+      setState(() {
+        _backViewType = type;
+        _isFlipped = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final themeManager = Provider.of<ThemeManager>(context);
-    final connection = Provider.of<ConnectionService>(context);
-    
-    return RefreshIndicator(
-      onRefresh: () async {
-        // Trigger manual refresh or reconnect logic here
-        await Future.delayed(const Duration(seconds: 1));
-      },
-      color: themeManager.accentColor,
-      backgroundColor: themeManager.chatBackgroundColor,
-      child: StreamBuilder<int>(
-        stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
-        builder: (context, snapshot) {
-          final telemetry = Provider.of<TelemetryService>(context, listen: false);
+    final theme = Provider.of<ThemeManager>(context);
+    final telemetry = Provider.of<TelemetryService>(context);
 
-          if (!telemetry.isWsConnected && !connection.isLocalAvailable) {
-            return _buildOfflineState(themeManager);
-          }
+    return FlipGlassCard(
+      isFlipped: _isFlipped,
+      height: 480,
+      front: _buildFront(theme, telemetry),
+      back: _buildBack(theme, telemetry),
+    );
+  }
 
-          final history = telemetry.history;
-          final current = telemetry.currentData;
-          
-          List<FlSpot> cpuSpots = [];
-          List<FlSpot> ramSpots = [];
-          List<FlSpot> gpuSpots = [];
-          
-          for (int i = 0; i < history.length; i++) {
-            cpuSpots.add(FlSpot(i.toDouble(), history[i].cpu));
-            ramSpots.add(FlSpot(i.toDouble(), history[i].ram));
-            gpuSpots.add(FlSpot(i.toDouble(), history[i].gpu));
-          }
+  Widget _buildFront(ThemeManager theme, TelemetryService telemetry) {
+    final isOnline = telemetry.isWsConnected;
+    final data = telemetry.currentData;
 
-          final bool isLoading = history.isEmpty;
-
-          return SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'SYSTEM TELEMETRY',
-                      style: TextStyle(
-                        color: themeManager.textColor,
-                        fontSize: 18,
-                        letterSpacing: 4,
-                        fontWeight: FontWeight.w300,
-                      ),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: themeManager.backgroundColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: themeManager.accentColor.withOpacity(0.5)),
-                      ),
-                      child: Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => setState(() => _showMobileTelemetry = false),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: !_showMobileTelemetry ? themeManager.accentColor.withOpacity(0.2) : Colors.transparent,
-                                borderRadius: const BorderRadius.horizontal(left: Radius.circular(15)),
-                              ),
-                              child: Text('PC', style: TextStyle(color: !_showMobileTelemetry ? themeManager.accentColor : themeManager.textColor.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () => setState(() => _showMobileTelemetry = true),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: _showMobileTelemetry ? themeManager.accentColor.withOpacity(0.2) : Colors.transparent,
-                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(15)),
-                              ),
-                              child: Text('MOBILE', style: TextStyle(color: _showMobileTelemetry ? themeManager.accentColor : themeManager.textColor.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'PC TELEMETRY',
+                style: TextStyle(
+                  color: theme.textColor,
+                  fontSize: 14,
+                  letterSpacing: 2,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 16),
-                
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SprintLogScreen()));
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
-                      color: themeManager.accentColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: themeManager.accentColor.withOpacity(0.5)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.history, color: themeManager.accentColor),
-                        const SizedBox(width: 12),
-                        Text(
-                          'VIEW HISTORY OF HELIX',
-                          style: TextStyle(
-                            color: themeManager.accentColor,
-                            letterSpacing: 2,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      color: isOnline ? Colors.greenAccent : Colors.redAccent,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: isOnline ? Colors.greenAccent.withOpacity(0.5) : Colors.redAccent.withOpacity(0.5),
+                          blurRadius: 8,
+                        )
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                
-                const SizedBox(height: 24),
-                
-                if (_showMobileTelemetry) ...[
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 2.5,
-                    children: _mobileSpecs.entries.map((e) => _buildInfoTile(e.key, e.value, Icons.memory, themeManager, false)).toList(),
-                  ),
-                ] else ...[
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 2.5,
-                    children: [
-                      _buildInfoTile('Top CPU', current.topCpuApp, Icons.memory, themeManager, isLoading),
-                      _buildInfoTile('Top RAM', current.topRamApp, Icons.memory_outlined, themeManager, isLoading),
-                      _buildInfoTile('Disk Usage', '${current.disk.toStringAsFixed(1)}%', Icons.storage, themeManager, isLoading),
-                      _buildInfoTile('Temp & Fan', '${current.temp.toStringAsFixed(1)}°C | ${current.fanSpeed.toInt()} RPM', Icons.thermostat, themeManager, isLoading),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  GestureDetector(
-                    onTap: () => _showTop10Popup(context, themeManager, 'CPU'),
-                    child: SizedBox(height: 200, child: _buildChartCard(context, 'CPU Usage', cpuSpots, Colors.cyanAccent, themeManager, isLoading)),
-                  ),
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: () => _showTop10Popup(context, themeManager, 'RAM'),
-                    child: SizedBox(height: 200, child: _buildChartCard(context, 'RAM Usage', ramSpots, Colors.greenAccent, themeManager, isLoading)),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(height: 200, child: _buildChartCard(context, 'GPU Usage', gpuSpots, Colors.purpleAccent, themeManager, isLoading)),
+                  const SizedBox(width: 8),
+                  if (isOnline)
+                    StreamBuilder(
+                      stream: Stream.periodic(const Duration(seconds: 1)),
+                      builder: (context, _) {
+                        final uptime = DateTime.now().difference(_startTime);
+                        final hours = uptime.inHours.toString().padLeft(2, '0');
+                        final minutes = (uptime.inMinutes % 60).toString().padLeft(2, '0');
+                        final seconds = (uptime.inSeconds % 60).toString().padLeft(2, '0');
+                        return Text(
+                          '$hours:$minutes:$seconds',
+                          style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12, fontFamily: 'monospace'),
+                        );
+                      },
+                    )
+                  else
+                    const Text(
+                      'DISCONNECTED',
+                      style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                    ),
                 ],
-                const SizedBox(height: 24),
-                const BatteryAnalytics(),
-                const SizedBox(height: 32),
+              )
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Action Buttons
+          Row(
+            children: [
+              _buildActionButton(theme, 'CPU PROCS', Icons.memory, () => _flipTo(0)),
+              const SizedBox(width: 12),
+              _buildActionButton(theme, 'MEM PROCS', Icons.memory_outlined, () => _flipTo(1)),
+              const SizedBox(width: 12),
+              _buildActionButton(theme, 'HARDWARE', Icons.dns_outlined, () => _flipTo(2)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Graphs
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(child: _buildMiniGraph(theme, 'CPU', data.cpu, telemetry.history.map((e) => e.cpu).toList(), Colors.cyanAccent)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildMiniGraph(theme, 'RAM', data.ram, telemetry.history.map((e) => e.ram).toList(), Colors.greenAccent)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildMiniGraph(theme, 'GPU', data.gpu, telemetry.history.map((e) => e.gpu).toList(), Colors.purpleAccent)),
               ],
             ),
-          );
-        }
+          ),
+          const SizedBox(height: 24),
+          // Mini Metrics
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildMiniMetric(theme, 'TEMP', '${data.temp.toStringAsFixed(1)}°C'),
+              _buildMiniMetric(theme, 'FAN', '${data.fanSpeed.toInt()} RPM'),
+              _buildMiniMetric(theme, 'DISK', '${data.disk.toStringAsFixed(1)}%'),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildOfflineState(ThemeManager themeManager) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+  Widget _buildBack(ThemeManager theme, TelemetryService telemetry) {
+    final data = telemetry.currentData;
+    String title = '';
+    Widget content = const SizedBox();
+
+    if (_backViewType == 0) {
+      title = 'CPU PROCESSES';
+      content = _buildProcessView(theme, 'Highest CPU Allocation', data.topCpuApp, data.cpu);
+    } else if (_backViewType == 1) {
+      title = 'MEMORY PROCESSES';
+      content = _buildProcessView(theme, 'Highest RAM Allocation', data.topRamApp, data.ram);
+    } else if (_backViewType == 2) {
+      title = 'HARDWARE ANALYTICS';
+      content = _buildHardwareView(theme, data);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: theme.textColor),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  setState(() => _isFlipped = false);
+                },
+              ),
+              Text(
+                title,
+                style: TextStyle(color: theme.textColor, fontSize: 14, letterSpacing: 2, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Expanded(child: content),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProcessView(ThemeManager theme, String label, String appName, double usage) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        SizedBox(
-          height: 400,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.wifi_off_rounded, size: 64, color: themeManager.accentColor.withOpacity(0.5)),
-                const SizedBox(height: 16),
-                Text(
-                  'PC OFFLINE',
-                  style: TextStyle(
-                    color: themeManager.textColor,
-                    fontSize: 24,
-                    letterSpacing: 4,
-                    fontWeight: FontWeight.w300,
-                  ),
+        Icon(Icons.memory, size: 64, color: theme.accentColor.withOpacity(0.5)),
+        const SizedBox(height: 24),
+        Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12, letterSpacing: 1)),
+        const SizedBox(height: 8),
+        Text(appName, style: TextStyle(color: theme.textColor, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: theme.accentColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: theme.accentColor.withOpacity(0.3)),
+          ),
+          child: Text('System Usage: ${usage.toStringAsFixed(1)}%', style: TextStyle(color: theme.accentColor, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHardwareView(ThemeManager theme, TelemetryData data) {
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      children: [
+        _buildHardwareSection(theme, 'STORAGE (MAIN DRIVE)', Icons.storage, [
+          _buildHardwareStat(theme, 'Usage', '${data.disk.toStringAsFixed(1)}%'),
+          _buildHardwareStat(theme, 'Health', 'Good'),
+          _buildHardwareStat(theme, 'Temp', '${data.temp.toStringAsFixed(1)}°C'),
+        ]),
+        const SizedBox(height: 16),
+        _buildHardwareSection(theme, 'PERIPHERALS', Icons.mouse, [
+          _buildHardwareStat(theme, 'Devices', 'Data Stream Unavailable'),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildHardwareSection(ThemeManager theme, String title, IconData icon, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.chatBackgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.textColor.withOpacity(0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: theme.accentColor, size: 16),
+              const SizedBox(width: 8),
+              Text(title, style: TextStyle(color: theme.textColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHardwareStat(ThemeManager theme, String label, String val) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12)),
+          Text(val, style: TextStyle(color: theme.textColor, fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(ThemeManager theme, String label, IconData icon, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.accentColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.accentColor.withOpacity(0.3)),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: theme.accentColor, size: 20),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(color: theme.textColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniGraph(ThemeManager theme, String label, double currentVal, List<double> history, Color color) {
+    final spots = history.isEmpty 
+        ? [const FlSpot(0, 0)] 
+        : List.generate(history.length, (index) => FlSpot(index.toDouble(), history[index]));
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 10, letterSpacing: 1)),
+        const SizedBox(height: 4),
+        Text('${currentVal.toStringAsFixed(1)}%', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.chatBackgroundColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: LineChart(
+                LineChartData(
+                  gridData: const FlGridData(show: false),
+                  titlesData: const FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  minX: 0,
+                  maxX: 60,
+                  minY: 0,
+                  maxY: 100,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      color: color,
+                      barWidth: 2,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(show: true, color: color.withOpacity(0.1)),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '403/405 Connection Error\nAgent Unreachable',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: themeManager.textColor.withOpacity(0.5),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -313,141 +536,380 @@ class _SystemDashboardTabState extends State<SystemDashboardTab> {
     );
   }
 
-  Widget _buildInfoTile(String title, String value, IconData icon, ThemeManager theme, bool isLoading) {
-    if (isLoading) {
-      return RepaintBoundary(
-        child: Shimmer.fromColors(
-          baseColor: theme.textColor.withOpacity(0.1),
-          highlightColor: theme.textColor.withOpacity(0.2),
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.chatBackgroundColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      );
+  Widget _buildMiniMetric(ThemeManager theme, String label, String val) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 10, letterSpacing: 1)),
+        const SizedBox(height: 4),
+        Text(val, style: TextStyle(color: theme.textColor, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// PHONE TELEMETRY CARD
+// ---------------------------------------------------------
+class PhoneTelemetryCard extends StatefulWidget {
+  const PhoneTelemetryCard({super.key});
+
+  @override
+  State<PhoneTelemetryCard> createState() => _PhoneTelemetryCardState();
+}
+
+class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
+  bool _isFlipped = false;
+  int _backViewType = 0; // 0: Connectivity, 1: Storage
+
+  final Battery _battery = Battery();
+  final Connectivity _connectivity = Connectivity();
+  
+  int _batteryLevel = 100;
+  List<ConnectivityResult> _connectivityStatus = [ConnectivityResult.none];
+  String _deviceName = "Unknown Device";
+  int _freeRam = 0;
+  int _totalRam = 0;
+
+  Timer? _pollingTimer;
+  StreamSubscription? _batterySubscription;
+  StreamSubscription? _connectivitySubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPhoneData();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) => _pollRam());
+  }
+
+  Future<void> _initPhoneData() async {
+    try {
+      _batteryLevel = await _battery.batteryLevel;
+      _connectivityStatus = await _connectivity.checkConnectivity();
+      
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final info = await deviceInfo.androidInfo;
+        _deviceName = "${info.manufacturer} ${info.model}";
+      } else if (Platform.isIOS) {
+        final info = await deviceInfo.iosInfo;
+        _deviceName = info.name;
+      }
+      
+      _pollRam();
+
+      // Listeners
+      _batterySubscription = _battery.onBatteryStateChanged.listen((_) async {
+        if (mounted) {
+          final level = await _battery.batteryLevel;
+          setState(() => _batteryLevel = level);
+        }
+      });
+
+      _connectivitySubscription = _connectivity.onConnectivityChanged.listen((results) {
+        if (mounted) {
+          setState(() => _connectivityStatus = results);
+        }
+      });
+    } catch (e) {
+      debugPrint("Phone telemetry init error: $e");
+    }
+  }
+
+  void _pollRam() {
+    if (!mounted) return;
+    try {
+      setState(() {
+        _freeRam = SysInfo.getFreePhysicalMemory();
+        _totalRam = SysInfo.getTotalPhysicalMemory();
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    _batterySubscription?.cancel();
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  void _flipTo(int type) {
+    HapticFeedback.mediumImpact();
+    if (_isFlipped && _backViewType == type) {
+      setState(() => _isFlipped = false);
+    } else {
+      setState(() {
+        _backViewType = type;
+        _isFlipped = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeManager>(context);
+
+    return FlipGlassCard(
+      isFlipped: _isFlipped,
+      height: 480,
+      front: _buildFront(theme),
+      back: _buildBack(theme),
+    );
+  }
+
+  Widget _buildFront(ThemeManager theme) {
+    final hasWifi = _connectivityStatus.contains(ConnectivityResult.wifi);
+    final hasMobile = _connectivityStatus.contains(ConnectivityResult.mobile);
+    final isOnline = hasWifi || hasMobile;
+
+    double ramUsage = 0;
+    if (_totalRam > 0) {
+      ramUsage = ((_totalRam - _freeRam) / _totalRam) * 100;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.chatBackgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.textColor.withOpacity(0.05)),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: theme.accentColor, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'PHONE TELEMETRY',
+                style: TextStyle(
+                  color: theme.textColor,
+                  fontSize: 14,
+                  letterSpacing: 2,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: isOnline ? Colors.greenAccent : Colors.redAccent,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: isOnline ? Colors.greenAccent.withOpacity(0.5) : Colors.redAccent.withOpacity(0.5),
+                          blurRadius: 8,
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$_batteryLevel%',
+                    style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12, fontFamily: 'monospace'),
+                  ),
+                ],
+              )
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(_deviceName, style: TextStyle(color: theme.accentColor, fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          // Action Buttons
+          Row(
+            children: [
+              _buildActionButton(theme, 'CONNECTIVITY', Icons.wifi, () => _flipTo(0)),
+              const SizedBox(width: 12),
+              _buildActionButton(theme, 'STORAGE', Icons.sd_storage_outlined, () => _flipTo(1)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Status Row
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: [
-                Text(
-                  title,
-                  style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 10, letterSpacing: 1),
-                ),
-                Text(
-                  value,
-                  style: TextStyle(color: theme.textColor, fontSize: 12, fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                _buildStatusPill(theme, 'Wi-Fi', hasWifi),
+                const SizedBox(width: 8),
+                _buildStatusPill(theme, 'Mobile', hasMobile),
+                const SizedBox(width: 8),
+                _buildStatusPill(theme, 'Bluetooth', _connectivityStatus.contains(ConnectivityResult.bluetooth)),
+                const SizedBox(width: 8),
+                _buildStatusPill(theme, 'VPN', _connectivityStatus.contains(ConnectivityResult.vpn)),
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          // Live Telemetry
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.chatBackgroundColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildPhoneMetricRow(theme, 'RAM Usage', '${ramUsage.toStringAsFixed(1)}%', Icons.memory),
+                  _buildPhoneMetricRow(theme, 'Free RAM', '${(_freeRam / 1024 / 1024 / 1024).toStringAsFixed(2)} GB', Icons.cleaning_services),
+                  _buildPhoneMetricRow(theme, 'Connection', hasWifi ? 'Wi-Fi' : (hasMobile ? 'Cellular' : 'None'), Icons.signal_cellular_alt),
+                ],
+              ),
+            ),
+          )
         ],
       ),
     );
   }
 
-  Widget _buildChartCard(BuildContext context, String title, List<FlSpot> spots, Color lineColor, ThemeManager theme, bool isLoading) {
-    return RepaintBoundary(
-      child: Card(
-        color: theme.chatBackgroundColor,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.textColor.withOpacity(0.05)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildBack(ThemeManager theme) {
+    String title = '';
+    Widget content = const SizedBox();
+
+    if (_backViewType == 0) {
+      title = 'CONNECTIVITY ANALYTICS';
+      content = _buildConnectivityView(theme);
+    } else if (_backViewType == 1) {
+      title = 'STORAGE ANALYTICS';
+      content = _buildStorageView(theme);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: theme.textColor),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  setState(() => _isFlipped = false);
+                },
+              ),
               Text(
                 title,
-                style: TextStyle(
-                  color: theme.textColor.withOpacity(0.8),
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
+                style: TextStyle(color: theme.textColor, fontSize: 14, letterSpacing: 2, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Expanded(child: content),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectivityView(ThemeManager theme) {
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      children: [
+        _buildPhoneMetricRow(theme, 'Active Interfaces', _connectivityStatus.map((e) => e.name).join(', '), Icons.device_hub),
+        const SizedBox(height: 16),
+        _buildPhoneMetricRow(theme, 'Network Integrity', _connectivityStatus.contains(ConnectivityResult.none) ? 'Degraded' : 'Nominal', Icons.security),
+      ],
+    );
+  }
+
+  Widget _buildStorageView(ThemeManager theme) {
+    // We don't have deep storage analytics without platform channels. We represent RAM mapping here.
+    double ramUsage = 0;
+    if (_totalRam > 0) {
+      ramUsage = ((_totalRam - _freeRam) / _totalRam) * 100;
+    }
+    
+    return Column(
+      children: [
+        SizedBox(
+          height: 160,
+          child: PieChart(
+            PieChartData(
+              sectionsSpace: 4,
+              centerSpaceRadius: 40,
+              sections: [
+                PieChartSectionData(
+                  color: theme.accentColor,
+                  value: ramUsage,
+                  title: '${ramUsage.toStringAsFixed(0)}%',
+                  radius: 20,
+                  titleStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.backgroundColor),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: isLoading
-                  ? Shimmer.fromColors(
-                      baseColor: theme.textColor.withOpacity(0.1),
-                      highlightColor: theme.textColor.withOpacity(0.2),
-                      child: Container(color: Colors.white),
-                    )
-                  : LineChart(
-                      LineChartData(
-                        gridData: FlGridData(
-                          show: true,
-                          drawVerticalLine: false,
-                          horizontalInterval: 25,
-                          getDrawingHorizontalLine: (value) {
-                            return FlLine(
-                              color: theme.textColor.withOpacity(0.1),
-                              strokeWidth: 1,
-                            );
-                          },
-                        ),
-                        titlesData: FlTitlesData(
-                          show: true,
-                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 40,
-                              getTitlesWidget: (value, meta) {
-                                return Text('${value.toInt()}%', style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 10));
-                              },
-                            ),
-                          ),
-                        ),
-                        borderData: FlBorderData(show: false),
-                        minX: 0,
-                        maxX: 60,
-                        minY: 0,
-                        maxY: 100,
-                        lineBarsData: [
-                          LineChartBarData(
-                            spots: spots,
-                            isCurved: true,
-                            color: lineColor,
-                            barWidth: 2,
-                            isStrokeCapRound: true,
-                            dotData: const FlDotData(show: false),
-                            belowBarData: BarAreaData(
-                              show: true,
-                              color: lineColor.withOpacity(0.1),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-              ),
+                PieChartSectionData(
+                  color: theme.textColor.withOpacity(0.1),
+                  value: 100 - ramUsage,
+                  title: '',
+                  radius: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text('MEMORY ALLOCATION', style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12, letterSpacing: 1)),
+        const SizedBox(height: 16),
+        _buildPhoneMetricRow(theme, 'Used Memory', '${((_totalRam - _freeRam) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB', Icons.pie_chart),
+        _buildPhoneMetricRow(theme, 'Free Memory', '${(_freeRam / 1024 / 1024 / 1024).toStringAsFixed(2)} GB', Icons.pie_chart_outline),
+      ],
+    );
+  }
+
+  Widget _buildActionButton(ThemeManager theme, String label, IconData icon, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.accentColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.accentColor.withOpacity(0.3)),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: theme.accentColor, size: 20),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(color: theme.textColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStatusPill(ThemeManager theme, String label, bool isActive) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? Colors.greenAccent.withOpacity(0.1) : theme.textColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isActive ? Colors.greenAccent.withOpacity(0.3) : Colors.transparent),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: isActive ? Colors.greenAccent : theme.textColor.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(color: isActive ? Colors.greenAccent : theme.textColor.withOpacity(0.5), fontSize: 10, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhoneMetricRow(ThemeManager theme, String label, String val, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: theme.accentColor, size: 18),
+        const SizedBox(width: 12),
+        Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.7), fontSize: 12)),
+        const Spacer(),
+        Text(val, style: TextStyle(color: theme.textColor, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+      ],
     );
   }
 }
