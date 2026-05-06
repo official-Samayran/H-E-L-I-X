@@ -445,36 +445,32 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
         ),
       ),
       const SizedBox(height: 16),
-      Center(
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _buildControlCenterTile('Markdown Parsing', Icons.code, _markdownParsing, (v) => _toggleGeneric('markdown_parsing', v, (val) => setState(() => _markdownParsing = val)), theme),
-            _buildControlCenterTile('Auto-Scroll', Icons.arrow_downward, _autoScroll, (v) => _toggleGeneric('auto_scroll', v, (val) => setState(() => _autoScroll = val)), theme),
-            _buildControlCenterTile('Typing Cursor', Icons.keyboard, _typingCursor, (v) => _toggleGeneric('typing_cursor', v, (val) => setState(() => _typingCursor = val)), theme),
-          ],
-        ),
+      Wrap(
+        alignment: WrapAlignment.start,
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _buildControlCenterTile('Markdown Parsing', Icons.code, _markdownParsing, (v) => _toggleGeneric('markdown_parsing', v, (val) => setState(() => _markdownParsing = val)), theme),
+          _buildControlCenterTile('Auto-Scroll', Icons.arrow_downward, _autoScroll, (v) => _toggleGeneric('auto_scroll', v, (val) => setState(() => _autoScroll = val)), theme),
+          _buildControlCenterTile('Typing Cursor', Icons.keyboard, _typingCursor, (v) => _toggleGeneric('typing_cursor', v, (val) => setState(() => _typingCursor = val)), theme),
+        ],
       ),
     ];
   }
 
   List<Widget> _buildHardwareContent(ThemeManager theme) {
     return [
-      Center(
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _buildControlCenterTile('Secure Screen', Icons.security, _secureScreen, _toggleSecureScreen, theme),
-            _buildControlCenterTile('144 FPS Lock', Icons.speed, _fpsSyncLock, _toggleFpsSyncLock, theme),
-            _buildControlCenterTile('FPS Counter', Icons.monitor, theme.showFpsCounter, (v) => theme.toggleFpsCounter(v), theme),
-            _buildControlCenterTile('Hardware Accel', Icons.memory, _hardwareAccel, (v) => _toggleGeneric('hardware_accel', v, (val) => setState(() => _hardwareAccel = val)), theme),
-            _buildControlCenterTile('Background Polling', Icons.sync, _bgPolling, (v) => _toggleGeneric('bg_polling', v, (val) => setState(() => _bgPolling = val)), theme),
-          ],
-        ),
+      Wrap(
+        alignment: WrapAlignment.start,
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _buildControlCenterTile('Secure Screen', Icons.security, _secureScreen, _toggleSecureScreen, theme),
+          _buildControlCenterTile('144 FPS Lock', Icons.speed, _fpsSyncLock, _toggleFpsSyncLock, theme),
+          _buildControlCenterTile('FPS Counter', Icons.monitor, theme.showFpsCounter, (v) => theme.toggleFpsCounter(v), theme),
+          _buildControlCenterTile('Hardware Accel', Icons.memory, _hardwareAccel, (v) => _toggleGeneric('hardware_accel', v, (val) => setState(() => _hardwareAccel = val)), theme),
+          _buildControlCenterTile('Background Polling', Icons.sync, _bgPolling, (v) => _toggleGeneric('bg_polling', v, (val) => setState(() => _bgPolling = val)), theme),
+        ],
       ),
       Padding(
         padding: const EdgeInsets.only(top: 24, bottom: 8),

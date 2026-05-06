@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'services/task_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,8 +57,10 @@ void main() async {
           create: (context) => CommandService(Provider.of<BaseConnectionProvider>(context, listen: false)),
         ),
         
-        ProxyProvider<CommandService, IntentRouter>(
-          update: (_, command, _) => IntentRouter(command),
+        ChangeNotifierProvider(create: (_) => TaskService()),
+        
+        ProxyProvider2<CommandService, TaskService, IntentRouter>(
+          update: (_, command, taskService, _) => IntentRouter(command, taskService),
         ),
       ],
       child: const HelixApp(),

@@ -296,8 +296,13 @@ class ConnectionService extends ChangeNotifier {
       final client = http.Client();
       final streamedResponse = await client.send(request);
       
-      if (streamedResponse.statusCode != 200) {
+      if (streamedResponse.statusCode == 429) {
+        addSystemMessage("Gemini API Rate Limit Exceeded (429). Please wait a moment before trying again.");
+        _messages.removeAt(messageIndex);
+        return;
+      } else if (streamedResponse.statusCode != 200) {
         addSystemMessage("Gemini Error: ${streamedResponse.statusCode}");
+        _messages.removeAt(messageIndex);
         return;
       }
 

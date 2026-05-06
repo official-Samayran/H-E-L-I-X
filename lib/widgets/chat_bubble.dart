@@ -11,6 +11,8 @@ import '../theme/theme_manager.dart';
 import '../models/chat_message.dart';
 import 'package:add_2_calendar/add_2_calendar.dart';
 import 'adaptive_ui.dart';
+import '../services/task_service.dart';
+import '../models/task_item.dart';
 
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
@@ -30,7 +32,43 @@ class ChatBubble extends StatelessWidget {
 
     return Align(
       alignment: isUser ? Alignment.centerRight : (isSystem ? Alignment.center : Alignment.centerLeft),
-      child: Column(
+      child: SelectionArea(
+        contextMenuBuilder: (BuildContext context, SelectableRegionState selectableRegionState) {
+          final buttonItems = selectableRegionState.contextMenuButtonItems;
+          final taskService = Provider.of<TaskService>(context, listen: false);
+          
+          return AdaptiveTextSelectionToolbar.buttonItems(
+            anchors: selectableRegionState.contextMenuAnchors,
+            buttonItems: [
+              ...buttonItems,
+              ContextMenuButtonItem(
+                onPressed: () {
+                  final selectedText = selectableRegionState.textEditingValue.selection.textInside(selectableRegionState.textEditingValue.text);
+                  ContextMenuController.removeAny();
+                  taskService.addTask(selectedText.trim(), TaskType.todo);
+                },
+                label: 'Add to ToDo',
+              ),
+              ContextMenuButtonItem(
+                onPressed: () {
+                  final selectedText = selectableRegionState.textEditingValue.selection.textInside(selectableRegionState.textEditingValue.text);
+                  ContextMenuController.removeAny();
+                  taskService.addTask(selectedText.trim(), TaskType.note);
+                },
+                label: 'Add to Note',
+              ),
+              ContextMenuButtonItem(
+                onPressed: () {
+                  final selectedText = selectableRegionState.textEditingValue.selection.textInside(selectableRegionState.textEditingValue.text);
+                  ContextMenuController.removeAny();
+                  taskService.addTask(selectedText.trim(), TaskType.reminder);
+                },
+                label: 'Add to Reminder',
+              ),
+            ],
+          );
+        },
+        child: Column(
         crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -133,13 +171,14 @@ class ChatBubble extends StatelessWidget {
             ),
         ],
       ),
+      ),
     );
   }
 
   Widget _buildMarkdown(BuildContext context, ThemeManager theme, String text) {
     return MarkdownBody(
       data: text,
-      selectable: true,
+      selectable: false,
       styleSheet: MarkdownStyleSheet(
         h1: TextStyle(color: theme.textColor, fontSize: 32, fontWeight: FontWeight.bold),
         h2: TextStyle(color: theme.textColor, fontSize: 26, fontWeight: FontWeight.bold),

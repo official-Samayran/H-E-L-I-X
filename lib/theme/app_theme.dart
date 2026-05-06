@@ -15,6 +15,7 @@ enum AppThemeType {
   valorant,
   gtaV,
   racing,
+  neumorphic,
 }
 
 class AppThemeData {
@@ -312,6 +313,30 @@ class AppThemes {
           primary: const Color(0xFFC0C0C0),
           secondary: const Color(0xFFD3D3D3),
           surface: const Color(0xFF333333),
+        ),
+      ),
+    ),
+    AppThemeType.neumorphic: AppThemeData(
+      type: AppThemeType.neumorphic,
+      name: 'Neumorphic',
+      backgroundColor: const Color(0xFFE0E5EC),
+      auraColor: const Color(0xFFA3B1C6),
+      chatBackgroundColor: const Color(0xFFE0E5EC),
+      textColor: const Color(0xFF4A5568),
+      accentColor: const Color(0xFF3182CE),
+      borderRadius: 20.0,
+      themeData: ThemeData.light().copyWith(
+        scaffoldBackgroundColor: const Color(0xFFE0E5EC),
+        textTheme: GoogleFonts.nunitoTextTheme(ThemeData.light().textTheme).apply(bodyColor: const Color(0xFF4A5568), displayColor: const Color(0xFF4A5568)),
+        colorScheme: const ColorScheme.light().copyWith(
+          primary: const Color(0xFF3182CE),
+          secondary: const Color(0xFFA3B1C6),
+          surface: const Color(0xFFE0E5EC),
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFFE0E5EC),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 0,
         ),
       ),
     ),

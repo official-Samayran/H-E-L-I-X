@@ -13,6 +13,8 @@ import '../../widgets/animated_aura.dart';
 import '../../services/connection_service.dart';
 import '../../services/intent_router.dart';
 import '../../models/chat_message.dart';
+import '../../services/task_service.dart';
+import '../../models/task_item.dart';
 import '../../widgets/chat_bubble.dart';
 import '../search_results_screen.dart';
 
@@ -123,6 +125,12 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     final text = rawText.trim();
     if (text.isEmpty && _pendingAttachmentPath == null) return;
     
+    // Clear immediately to prevent rapid duplicate submissions
+    setState(() {
+      _chatController.clear();
+      if (!_isChatExpanded) _isChatExpanded = true;
+    });
+
     final connectionService = Provider.of<ConnectionService>(context, listen: false);
 
     if (text.isNotEmpty) {
@@ -130,7 +138,6 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
       if (text.toLowerCase().contains('helix, lumos') || text.toLowerCase().contains('helix, nox')) {
         connectionService.addSystemMessage("Hardware: Executed Flashlight Command -> ${text.split(',').last.trim()}");
         setState(() {
-          _chatController.clear();
           _pendingAttachmentPath = null;
           _pendingAttachmentName = null;
         });
@@ -143,26 +150,31 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
       if (intent == IntentType.systemCommand) {
         connectionService.addSystemMessage("Executed system command: $text");
         setState(() {
-          _chatController.clear();
           _pendingAttachmentPath = null;
           _pendingAttachmentName = null;
         });
         return;
       }
+      
+      if (intent == IntentType.taskExtraction) {
+        connectionService.addSystemMessage("AI automatically extracted and saved your task.");
+      }
     }
 
-    await connectionService.sendMessage(
-      text, 
-      attachmentPath: _pendingAttachmentPath, 
-      isImage: _pendingAttachmentIsImage
-    );
+    final attachmentPath = _pendingAttachmentPath;
+    final isImage = _pendingAttachmentIsImage;
     
     setState(() {
-      _chatController.clear();
       _pendingAttachmentPath = null;
       _pendingAttachmentName = null;
-      if (!_isChatExpanded) _isChatExpanded = true;
     });
+
+    // Do not await sendMessage so we can scroll immediately
+    connectionService.sendMessage(
+      text, 
+      attachmentPath: attachmentPath, 
+      isImage: isImage
+    );
     
     Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
   }
@@ -242,15 +254,58 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   }
 
   Widget _buildProductivitySection(ThemeManager themeManager) {
+    final taskService = Provider.of<TaskService>(context);
+
+    Widget buildTaskList(List<TaskItem> items, String emptyMessage) {
+      if (items.isEmpty) {
+        return Center(child: Text(emptyMessage, style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12)));
+      }
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const BouncingScrollPhysics(),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final task = items[index];
+          return ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: IconButton(
+              icon: Icon(
+                task.isCompleted ? Icons.check_circle : Icons.circle_outlined,
+                color: task.isCompleted ? themeManager.accentColor.withOpacity(0.5) : themeManager.accentColor,
+                size: 20,
+              ),
+              onPressed: () => taskService.toggleTaskCompletion(task.id),
+            ),
+            title: Text(
+              task.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: themeManager.textColor.withOpacity(task.isCompleted ? 0.5 : 1.0),
+                decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                fontSize: 14,
+              ),
+            ),
+            trailing: IconButton(
+              icon: Icon(Icons.close, size: 16, color: themeManager.textColor.withOpacity(0.3)),
+              onPressed: () => taskService.removeTask(task.id),
+            ),
+          );
+        },
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: _buildGlassCard(
                 themeManager: themeManager,
-                height: 140,
+                height: 220,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -261,9 +316,8 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                         Text('Reminders', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
                       ],
                     ),
-                    const Spacer(),
-                    Center(child: Text('No upcoming reminders', style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12))),
-                    const Spacer(),
+                    const SizedBox(height: 8),
+                    Expanded(child: buildTaskList(taskService.reminders, 'No reminders')),
                   ],
                 ),
               ),
@@ -272,7 +326,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
             Expanded(
               child: _buildGlassCard(
                 themeManager: themeManager,
-                height: 140,
+                height: 220,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -280,12 +334,11 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                       children: [
                         Icon(Icons.check_circle_outline, color: themeManager.accentColor, size: 20),
                         const SizedBox(width: 8),
-                        Text('Todo List', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
+                        Text('To-Do List', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
                       ],
                     ),
-                    const Spacer(),
-                    Center(child: Text('All tasks completed', style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12))),
-                    const Spacer(),
+                    const SizedBox(height: 8),
+                    Expanded(child: buildTaskList(taskService.todos, 'All caught up')),
                   ],
                 ),
               ),
@@ -295,7 +348,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
         const SizedBox(height: 16),
         _buildGlassCard(
           themeManager: themeManager,
-          height: 180,
+          height: 260,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -306,29 +359,8 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                   Text('Quick Notes', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
                 ],
               ),
-              const Spacer(),
-              Center(child: Text('Tap to jot down a note', style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12))),
-              const Spacer(),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildGlassCard(
-          themeManager: themeManager,
-          height: 120,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.history, color: themeManager.accentColor, size: 20),
-                  const SizedBox(width: 8),
-                  Text('Recent Activity', style: TextStyle(color: themeManager.textColor, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const Spacer(),
-              Center(child: Text('No recent activity detected', style: TextStyle(color: themeManager.textColor.withOpacity(0.4), fontSize: 12))),
-              const Spacer(),
+              const SizedBox(height: 8),
+              Expanded(child: buildTaskList(taskService.notes, 'Jot something down')),
             ],
           ),
         ),
@@ -449,67 +481,97 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   }
 
   Widget _buildSegmentedControl(ThemeManager themeManager) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 44,
-      decoration: BoxDecoration(
-        color: themeManager.currentThemeType == AppThemeType.oled 
-            ? Colors.black 
-            : themeManager.chatBackgroundColor.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: themeManager.textColor.withOpacity(0.1)),
-      ),
-      child: Stack(
-        children: [
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            left: _currentSection == 0 ? 0 : (MediaQuery.of(context).size.width - 34) / 2,
-            width: (MediaQuery.of(context).size.width - 34) / 2,
-            height: 42,
-            child: Container(
-              decoration: BoxDecoration(
-                color: themeManager.textColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(21),
-              ),
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.only(left: 16, right: 8, top: 8, bottom: 8),
+            height: 44,
+            decoration: BoxDecoration(
+              color: themeManager.currentThemeType == AppThemeType.oled 
+                  ? Colors.black 
+                  : themeManager.chatBackgroundColor.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: themeManager.textColor.withOpacity(0.1)),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      left: _currentSection == 0 ? 0 : constraints.maxWidth / 2,
+                      width: constraints.maxWidth / 2,
+                      height: 42,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: themeManager.textColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(21),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              setState(() => _currentSection = 0);
+                              _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+                            },
+                            child: Center(
+                              child: Text('Productivity', style: TextStyle(
+                                color: _currentSection == 0 ? themeManager.textColor : themeManager.textColor.withOpacity(0.5),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              )),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              setState(() => _currentSection = 1);
+                              _pageController.animateToPage(1, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+                            },
+                            child: Center(
+                              child: Text('Control', style: TextStyle(
+                                color: _currentSection == 1 ? themeManager.textColor : themeManager.textColor.withOpacity(0.5),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              )),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
             ),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    setState(() => _currentSection = 0);
-                    _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
-                  },
-                  child: Center(
-                    child: Text('Productivity', style: TextStyle(
-                      color: _currentSection == 0 ? themeManager.textColor : themeManager.textColor.withOpacity(0.5),
-                      fontWeight: FontWeight.bold,
-                    )),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    setState(() => _currentSection = 1);
-                    _pageController.animateToPage(1, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
-                  },
-                  child: Center(
-                    child: Text('Control Center', style: TextStyle(
-                      color: _currentSection == 1 ? themeManager.textColor : themeManager.textColor.withOpacity(0.5),
-                      fontWeight: FontWeight.bold,
-                    )),
-                  ),
-                ),
-              ),
-            ],
+        ),
+        Container(
+          margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+          height: 44,
+          width: 44,
+          decoration: BoxDecoration(
+            color: themeManager.currentThemeType == AppThemeType.oled 
+                ? Colors.black 
+                : themeManager.chatBackgroundColor.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: themeManager.textColor.withOpacity(0.1)),
           ),
-        ],
-      ),
+          child: IconButton(
+            icon: Icon(Icons.search, size: 20, color: themeManager.textColor),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchResultsScreen()));
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -781,6 +843,18 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final themeManager = Provider.of<ThemeManager>(context);
     final connectionService = Provider.of<ConnectionService>(context);
+
+    // Auto-scroll when AI is typing if we're near the bottom
+    if (connectionService.isTyping) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          final maxScroll = _scrollController.position.maxScrollExtent;
+          if (maxScroll - _scrollController.offset <= 150) {
+            _scrollController.jumpTo(maxScroll);
+          }
+        }
+      });
+    }
 
     return Stack(
       children: [
