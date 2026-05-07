@@ -77,9 +77,9 @@ class _FpsMonitorState extends State<FpsMonitor> with SingleTickerProviderStateM
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
               ),
               child: Text(
                 '${_fps.toStringAsFixed(1)} FPS',

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -82,18 +81,18 @@ class ChatBubble extends StatelessWidget {
             ),
             decoration: isUser ? (theme.currentThemeType == AppThemeType.oled 
                 ? BoxDecoration(
-                    color: theme.textColor.withOpacity(0.05),
+                    color: theme.textColor.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(16).copyWith(
                       bottomRight: const Radius.circular(4),
                     ),
-                    border: Border.all(color: theme.textColor.withOpacity(0.15), width: 1),
+                    border: Border.all(color: theme.textColor.withValues(alpha: 0.15), width: 1),
                   )
                 : BoxDecoration(
-                    color: theme.accentColor.withOpacity(0.2),
+                    color: theme.accentColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(theme.borderRadius).copyWith(
                       bottomRight: const Radius.circular(4),
                     ),
-                    border: Border.all(color: theme.accentColor.withOpacity(0.5), width: 1),
+                    border: Border.all(color: theme.accentColor.withValues(alpha: 0.5), width: 1),
                   )) : null,
             child: isUser 
                 ? Column(
@@ -115,7 +114,7 @@ class ChatBubble extends StatelessWidget {
                               : Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: theme.textColor.withOpacity(0.1),
+                                    color: theme.textColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Row(
@@ -152,8 +151,8 @@ class ChatBubble extends StatelessWidget {
             Padding(
               padding: EdgeInsets.only(top: 4.s(context), bottom: 8.s(context), right: 8.s(context), left: 8.s(context)),
               child: ActionChip(
-                backgroundColor: theme.accentColor.withOpacity(0.1),
-                side: BorderSide(color: theme.accentColor.withOpacity(0.5)),
+                backgroundColor: theme.accentColor.withValues(alpha: 0.1),
+                side: BorderSide(color: theme.accentColor.withValues(alpha: 0.5)),
                 labelStyle: TextStyle(color: theme.accentColor, fontSize: 12),
                 label: const Text('Add to Task'),
                 avatar: Icon(Icons.calendar_today, size: 14, color: theme.accentColor),
@@ -196,11 +195,11 @@ class ChatBubble extends StatelessWidget {
         ),
         blockquoteDecoration: BoxDecoration(
           border: Border(left: BorderSide(color: theme.accentColor, width: 4)),
-          color: theme.textColor.withOpacity(0.05),
+          color: theme.textColor.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(4),
         ),
-        blockquote: TextStyle(color: theme.textColor.withOpacity(0.8), fontStyle: FontStyle.italic),
-        tableBorder: TableBorder.all(color: theme.textColor.withOpacity(0.1), width: 1, borderRadius: BorderRadius.circular(8)),
+        blockquote: TextStyle(color: theme.textColor.withValues(alpha: 0.8), fontStyle: FontStyle.italic),
+        tableBorder: TableBorder.all(color: theme.textColor.withValues(alpha: 0.1), width: 1, borderRadius: BorderRadius.circular(8)),
         tableBody: TextStyle(color: theme.textColor),
         tableHead: TextStyle(color: theme.textColor, fontWeight: FontWeight.bold),
       ),
@@ -267,7 +266,7 @@ class ChatBubble extends StatelessWidget {
             child: Text(
               finalAscii,
               style: TextStyle(
-                color: isSystem ? theme.textColor.withOpacity(0.5) : theme.textColor,
+                color: isSystem ? theme.textColor.withValues(alpha: 0.5) : theme.textColor,
                 fontFamily: 'monospace',
                 fontSize: 12,
                 height: 1.2,
@@ -309,7 +308,7 @@ class CodeElementBuilder extends MarkdownElementBuilder {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         decoration: BoxDecoration(
-          color: theme.textColor.withOpacity(0.1),
+          color: theme.textColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
@@ -329,7 +328,7 @@ class CodeElementBuilder extends MarkdownElementBuilder {
       decoration: BoxDecoration(
         color: const Color(0xFF282C34), // atom one dark bg
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.textColor.withOpacity(0.1)),
+        border: Border.all(color: theme.textColor.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -337,7 +336,7 @@ class CodeElementBuilder extends MarkdownElementBuilder {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withValues(alpha: 0.4),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: Row(
@@ -345,7 +344,7 @@ class CodeElementBuilder extends MarkdownElementBuilder {
               children: [
                 Text(
                   language.toUpperCase(),
-                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.bold),
                 ),
                 GestureDetector(
                   onTap: () {
@@ -354,9 +353,9 @@ class CodeElementBuilder extends MarkdownElementBuilder {
                   },
                   child: Row(
                     children: [
-                      Icon(Icons.copy, size: 14, color: Colors.white.withOpacity(0.5)),
+                      Icon(Icons.copy, size: 14, color: Colors.white.withValues(alpha: 0.5)),
                       const SizedBox(width: 4),
-                      Text('Copy', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text('Copy', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),

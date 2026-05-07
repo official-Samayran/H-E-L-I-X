@@ -109,7 +109,7 @@ class _TimelineNodeState extends State<_TimelineNode> with SingleTickerProviderS
                           color: theme.accentColor,
                           shape: BoxShape.circle,
                           boxShadow: [
-                            BoxShadow(color: theme.accentColor.withOpacity(0.8), blurRadius: 16, spreadRadius: 4),
+                            BoxShadow(color: theme.accentColor.withValues(alpha: 0.8), blurRadius: 16, spreadRadius: 4),
                           ],
                         ),
                       ),
@@ -117,7 +117,7 @@ class _TimelineNodeState extends State<_TimelineNode> with SingleTickerProviderS
                         Expanded(
                           child: Container(
                             width: 2,
-                            color: theme.accentColor.withOpacity(0.3),
+                            color: theme.accentColor.withValues(alpha: 0.3),
                           ),
                         ),
                     ],
@@ -143,9 +143,9 @@ class _TimelineNodeState extends State<_TimelineNode> with SingleTickerProviderS
                             decoration: BoxDecoration(
                               color: theme.chatBackgroundColor,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: theme.accentColor.withOpacity(0.1)),
+                              border: Border.all(color: theme.accentColor.withValues(alpha: 0.1)),
                               boxShadow: [
-                                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))
+                                BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5))
                               ]
                             ),
                             child: Column(
@@ -163,7 +163,7 @@ class _TimelineNodeState extends State<_TimelineNode> with SingleTickerProviderS
                                 Text(
                                   widget.sprint['desc']!,
                                   style: TextStyle(
-                                    color: theme.textColor.withOpacity(0.6),
+                                    color: theme.textColor.withValues(alpha: 0.6),
                                     fontSize: 14,
                                   ),
                                 ),

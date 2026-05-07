@@ -47,7 +47,7 @@ class BatteryAnalytics extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.chatBackgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.textColor.withOpacity(0.05)),
+        border: Border.all(color: theme.textColor.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,7 +58,7 @@ class BatteryAnalytics extends StatelessWidget {
               Text(
                 'BATTERY IMPACT LOG',
                 style: TextStyle(
-                  color: theme.textColor.withOpacity(0.7),
+                  color: theme.textColor.withValues(alpha: 0.7),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.5,
@@ -75,7 +75,7 @@ class BatteryAnalytics extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Divider(color: theme.textColor.withOpacity(0.1), height: 1),
+          Divider(color: theme.textColor.withValues(alpha: 0.1), height: 1),
           const SizedBox(height: 12),
           ...loads.map((item) => Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
@@ -85,7 +85,7 @@ class BatteryAnalytics extends StatelessWidget {
                 Text(
                   item.name,
                   style: TextStyle(
-                    color: theme.textColor.withOpacity(0.8),
+                    color: theme.textColor.withValues(alpha: 0.8),
                     fontSize: 14,
                     fontFamily: 'monospace',
                   ),

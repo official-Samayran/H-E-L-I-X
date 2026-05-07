@@ -63,6 +63,29 @@ class NotificationService {
       debugPrint('Android 16 Foreground Service Exception: $e');
     }
   }
+
+  Future<void> showLocalNotification({
+    required String title,
+    required String body,
+  }) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'helix_coding_agent',
+      'Coding Agent',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+    await flutterLocalNotificationsPlugin.show(
+      id: DateTime.now().millisecond,
+      title: title,
+      body: body,
+      notificationDetails: platformChannelSpecifics,
+    );
+  }
 }
 
 @pragma('vm:entry-point')

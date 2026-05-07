@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:battery_plus/battery_plus.dart';
@@ -14,7 +13,6 @@ import 'package:system_info2/system_info2.dart';
 
 import '../../theme/theme_manager.dart';
 import '../../services/telemetry_service.dart';
-import '../../services/connection_service.dart';
 
 class SystemDashboardTab extends StatefulWidget {
   const SystemDashboardTab({super.key});
@@ -87,7 +85,7 @@ class _SystemDashboardTabState extends State<SystemDashboardTab> {
       width: 8,
       height: _currentPage == index ? 24 : 8,
       decoration: BoxDecoration(
-        color: _currentPage == index ? theme.accentColor : theme.textColor.withOpacity(0.2),
+        color: _currentPage == index ? theme.accentColor : theme.textColor.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(4),
       ),
     );
@@ -168,15 +166,15 @@ class _FlipGlassCardState extends State<FlipGlassCard> with SingleTickerProvider
             decoration: BoxDecoration(
               color: theme.currentThemeType == AppThemeType.oled
                   ? Colors.black
-                  : theme.chatBackgroundColor.withOpacity(0.4),
+                  : theme.chatBackgroundColor.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: theme.textColor.withOpacity(0.05),
+                color: theme.textColor.withValues(alpha: 0.05),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 )
@@ -274,7 +272,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: isOnline ? Colors.greenAccent.withOpacity(0.5) : Colors.redAccent.withOpacity(0.5),
+                          color: isOnline ? Colors.greenAccent.withValues(alpha: 0.5) : Colors.redAccent.withValues(alpha: 0.5),
                           blurRadius: 8,
                         )
                       ],
@@ -291,7 +289,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
                         final seconds = (uptime.inSeconds % 60).toString().padLeft(2, '0');
                         return Text(
                           '$hours:$minutes:$seconds',
-                          style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12, fontFamily: 'monospace'),
+                          style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 12, fontFamily: 'monospace'),
                         );
                       },
                     )
@@ -390,18 +388,18 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.memory, size: 64, color: theme.accentColor.withOpacity(0.5)),
+        Icon(Icons.memory, size: 64, color: theme.accentColor.withValues(alpha: 0.5)),
         const SizedBox(height: 24),
-        Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12, letterSpacing: 1)),
+        Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 12, letterSpacing: 1)),
         const SizedBox(height: 8),
         Text(appName, style: TextStyle(color: theme.textColor, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: theme.accentColor.withOpacity(0.1),
+            color: theme.accentColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: theme.accentColor.withOpacity(0.3)),
+            border: Border.all(color: theme.accentColor.withValues(alpha: 0.3)),
           ),
           child: Text('System Usage: ${usage.toStringAsFixed(1)}%', style: TextStyle(color: theme.accentColor, fontWeight: FontWeight.bold)),
         ),
@@ -432,7 +430,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
       decoration: BoxDecoration(
         color: theme.chatBackgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.textColor.withOpacity(0.05)),
+        border: Border.all(color: theme.textColor.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -457,7 +455,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12)),
+          Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 12)),
           Text(val, style: TextStyle(color: theme.textColor, fontSize: 12, fontWeight: FontWeight.bold)),
         ],
       ),
@@ -471,9 +469,9 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: theme.accentColor.withOpacity(0.1),
+            color: theme.accentColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.accentColor.withOpacity(0.3)),
+            border: Border.all(color: theme.accentColor.withValues(alpha: 0.3)),
           ),
           child: Column(
             children: [
@@ -495,7 +493,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 10, letterSpacing: 1)),
+        Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 10, letterSpacing: 1)),
         const SizedBox(height: 4),
         Text('${currentVal.toStringAsFixed(1)}%', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
         const SizedBox(height: 8),
@@ -524,7 +522,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
                       barWidth: 2,
                       isStrokeCapRound: true,
                       dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(show: true, color: color.withOpacity(0.1)),
+                      belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.1)),
                     ),
                   ],
                 ),
@@ -539,7 +537,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
   Widget _buildMiniMetric(ThemeManager theme, String label, String val) {
     return Column(
       children: [
-        Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 10, letterSpacing: 1)),
+        Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 10, letterSpacing: 1)),
         const SizedBox(height: 4),
         Text(val, style: TextStyle(color: theme.textColor, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
       ],
@@ -695,7 +693,7 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: isOnline ? Colors.greenAccent.withOpacity(0.5) : Colors.redAccent.withOpacity(0.5),
+                          color: isOnline ? Colors.greenAccent.withValues(alpha: 0.5) : Colors.redAccent.withValues(alpha: 0.5),
                           blurRadius: 8,
                         )
                       ],
@@ -704,7 +702,7 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
                   const SizedBox(width: 8),
                   Text(
                     '$_batteryLevel%',
-                    style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12, fontFamily: 'monospace'),
+                    style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 12, fontFamily: 'monospace'),
                   ),
                 ],
               )
@@ -835,7 +833,7 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
                   titleStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.backgroundColor),
                 ),
                 PieChartSectionData(
-                  color: theme.textColor.withOpacity(0.1),
+                  color: theme.textColor.withValues(alpha: 0.1),
                   value: 100 - ramUsage,
                   title: '',
                   radius: 16,
@@ -845,7 +843,7 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
           ),
         ),
         const SizedBox(height: 24),
-        Text('MEMORY ALLOCATION', style: TextStyle(color: theme.textColor.withOpacity(0.5), fontSize: 12, letterSpacing: 1)),
+        Text('MEMORY ALLOCATION', style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 12, letterSpacing: 1)),
         const SizedBox(height: 16),
         _buildPhoneMetricRow(theme, 'Used Memory', '${((_totalRam - _freeRam) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB', Icons.pie_chart),
         _buildPhoneMetricRow(theme, 'Free Memory', '${(_freeRam / 1024 / 1024 / 1024).toStringAsFixed(2)} GB', Icons.pie_chart_outline),
@@ -860,9 +858,9 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: theme.accentColor.withOpacity(0.1),
+            color: theme.accentColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.accentColor.withOpacity(0.3)),
+            border: Border.all(color: theme.accentColor.withValues(alpha: 0.3)),
           ),
           child: Column(
             children: [
@@ -880,9 +878,9 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isActive ? Colors.greenAccent.withOpacity(0.1) : theme.textColor.withOpacity(0.05),
+        color: isActive ? Colors.greenAccent.withValues(alpha: 0.1) : theme.textColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isActive ? Colors.greenAccent.withOpacity(0.3) : Colors.transparent),
+        border: Border.all(color: isActive ? Colors.greenAccent.withValues(alpha: 0.3) : Colors.transparent),
       ),
       child: Row(
         children: [
@@ -890,12 +888,12 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: isActive ? Colors.greenAccent : theme.textColor.withOpacity(0.2),
+              color: isActive ? Colors.greenAccent : theme.textColor.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(color: isActive ? Colors.greenAccent : theme.textColor.withOpacity(0.5), fontSize: 10, fontWeight: FontWeight.bold)),
+           Text(label, style: TextStyle(color: isActive ? Colors.greenAccent : theme.textColor.withValues(alpha: 0.5), fontSize: 10, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -906,7 +904,7 @@ class _PhoneTelemetryCardState extends State<PhoneTelemetryCard> {
       children: [
         Icon(icon, color: theme.accentColor, size: 18),
         const SizedBox(width: 12),
-        Text(label, style: TextStyle(color: theme.textColor.withOpacity(0.7), fontSize: 12)),
+        Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.7), fontSize: 12)),
         const Spacer(),
         Text(val, style: TextStyle(color: theme.textColor, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
       ],

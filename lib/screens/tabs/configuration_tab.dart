@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
@@ -197,10 +196,10 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
           color: value ? theme.accentColor : theme.chatBackgroundColor,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: value ? theme.accentColor : theme.textColor.withOpacity(0.05),
+            color: value ? theme.accentColor : theme.textColor.withValues(alpha: 0.05),
             width: 1,
           ),
-          boxShadow: value ? [BoxShadow(color: theme.accentColor.withOpacity(0.3), blurRadius: 15, spreadRadius: 1)] : [],
+          boxShadow: value ? [BoxShadow(color: theme.accentColor.withValues(alpha: 0.3), blurRadius: 15, spreadRadius: 1)] : [],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -208,7 +207,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
             Icon(
               icon,
               size: 28,
-              color: value ? theme.backgroundColor : theme.textColor.withOpacity(0.7),
+              color: value ? theme.backgroundColor : theme.textColor.withValues(alpha: 0.7),
             ),
             const SizedBox(height: 10),
             Text(
@@ -216,7 +215,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
               textAlign: TextAlign.center,
               maxLines: 2,
               style: TextStyle(
-                color: value ? theme.backgroundColor : theme.textColor.withOpacity(0.9),
+                color: value ? theme.backgroundColor : theme.textColor.withValues(alpha: 0.9),
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
               ),
@@ -233,7 +232,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          color: theme.textColor.withOpacity(0.5),
+          color: theme.textColor.withValues(alpha: 0.5),
           fontSize: 12,
           letterSpacing: 2,
           fontWeight: FontWeight.bold,
@@ -323,13 +322,13 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.all(isActive ? 10 : 6),
         decoration: BoxDecoration(
-          color: isActive ? theme.accentColor.withOpacity(0.2) : Colors.transparent,
+          color: isActive ? theme.accentColor.withValues(alpha: 0.2) : Colors.transparent,
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
           size: isActive ? 24 : 16,
-          color: isActive ? theme.accentColor : theme.textColor.withOpacity(0.4),
+          color: isActive ? theme.accentColor : theme.textColor.withValues(alpha: 0.4),
         ),
       ),
     );
@@ -345,12 +344,12 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
           decoration: BoxDecoration(
             color: theme.currentThemeType == AppThemeType.oled
                 ? Colors.black
-                : theme.chatBackgroundColor.withOpacity(0.4),
+                : theme.chatBackgroundColor.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: theme.textColor.withOpacity(0.05), width: 1),
+            border: Border.all(color: theme.textColor.withValues(alpha: 0.05), width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               )
@@ -402,7 +401,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
           },
           decoration: InputDecoration(
             labelText: 'Engine Theme',
-            labelStyle: TextStyle(color: theme.textColor.withOpacity(0.6)),
+            labelStyle: TextStyle(color: theme.textColor.withValues(alpha: 0.6)),
             filled: true,
             fillColor: theme.chatBackgroundColor,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -435,7 +434,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
               max: 1.2,
               divisions: 4,
               activeColor: theme.accentColor,
-              inactiveColor: theme.accentColor.withOpacity(0.2),
+              inactiveColor: theme.accentColor.withValues(alpha: 0.2),
               onChanged: (val) {
                 _resetInactivityTimer();
                 Provider.of<ThemeManager>(context, listen: false).setUiScale(val);
@@ -483,7 +482,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
           theme.setHapticIntensity(v);
         },
         activeColor: theme.accentColor,
-        inactiveColor: theme.textColor.withOpacity(0.1),
+        inactiveColor: theme.textColor.withValues(alpha: 0.1),
       ),
       const SizedBox(height: 16),
       ElevatedButton(
@@ -541,7 +540,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
       onChanged: (_) => _resetInactivityTimer(),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: theme.textColor.withOpacity(0.6)),
+        labelStyle: TextStyle(color: theme.textColor.withValues(alpha: 0.6)),
         filled: true,
         fillColor: theme.chatBackgroundColor,
         border: OutlineInputBorder(
@@ -565,13 +564,13 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
             style: TextStyle(color: theme.textColor),
             decoration: InputDecoration(
               hintText: 'e.g., Creative Writer',
-              hintStyle: TextStyle(color: theme.textColor.withOpacity(0.5)),
+              hintStyle: TextStyle(color: theme.textColor.withValues(alpha: 0.5)),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('CANCEL', style: TextStyle(color: theme.textColor.withOpacity(0.6))),
+              child: Text('CANCEL', style: TextStyle(color: theme.textColor.withValues(alpha: 0.6))),
             ),
             TextButton(
               onPressed: () {
@@ -618,7 +617,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: _selectedPreset,
+              initialValue: _selectedPreset,
               dropdownColor: theme.chatBackgroundColor,
         style: TextStyle(color: theme.textColor),
         onChanged: (String? value) {
@@ -628,7 +627,12 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
               _selectedPreset = value;
               switch (value) {
                 case 'Default Helix':
-                  _personalizationController.text = 'Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain.';
+                  _personalizationController.text = 'Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain. '
+                      'You are now a Coding Assistant with PC access. You can perform the following actions by including these specific tags in your response:\n'
+                      '1. To write a file: [WRITE:path/to/file]CONTENT_HERE[/WRITE]\n'
+                      '2. To execute a command: [EXECUTE:command_here]\n'
+                      '3. To read a file: [READ:path/to/file]\n'
+                      'Your workspace is restricted to E:\\Helix_Projects. Always use full paths within this directory.';
                   break;
                 case 'Developer Brain':
                   _personalizationController.text = 'Identity: You are a senior software engineering assistant. You must provide highly optimized code snippets, architectural advice, and keep responses extremely concise. No fluff.';
@@ -647,7 +651,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
         },
               decoration: InputDecoration(
                 labelText: 'Persona Preset',
-                labelStyle: TextStyle(color: theme.textColor.withOpacity(0.6)),
+                labelStyle: TextStyle(color: theme.textColor.withValues(alpha: 0.6)),
                 filled: true,
                 fillColor: theme.chatBackgroundColor,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -688,7 +692,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
         decoration: InputDecoration(
           labelText: 'Master System Instruction',
           alignLabelWithHint: true,
-          labelStyle: TextStyle(color: theme.textColor.withOpacity(0.6)),
+          labelStyle: TextStyle(color: theme.textColor.withValues(alpha: 0.6)),
           filled: true,
           fillColor: theme.chatBackgroundColor,
           border: OutlineInputBorder(

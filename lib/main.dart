@@ -58,7 +58,9 @@ void main() async {
         ),
         
         ChangeNotifierProvider(create: (_) => TaskService()),
-        
+
+        Provider<NotificationService>(create: (_) => NotificationService()),
+
         ProxyProvider2<CommandService, TaskService, IntentRouter>(
           update: (_, command, taskService, _) => IntentRouter(command, taskService),
         ),

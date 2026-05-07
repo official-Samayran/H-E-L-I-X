@@ -93,15 +93,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 children: [
                   Container(width: 8, height: 8, decoration: BoxDecoration(color: pingColor, shape: BoxShape.circle)),
                   const SizedBox(width: 6),
-                  Text('$simulatedPing ms', style: TextStyle(color: themeManager.textColor.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.bold)),
+                  Text('$simulatedPing ms', style: TextStyle(color: themeManager.textColor.withValues(alpha: 0.7), fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
               // Battery & Time
               Row(
                 children: [
-                  Icon(Icons.battery_std, size: 14, color: themeManager.textColor.withOpacity(0.7)),
+                  Icon(Icons.battery_std, size: 14, color: themeManager.textColor.withValues(alpha: 0.7)),
                   const SizedBox(width: 4),
-                  Text('$_batteryLevel%', style: TextStyle(color: themeManager.textColor.withOpacity(0.7), fontSize: 12)),
+                  Text('$_batteryLevel%', style: TextStyle(color: themeManager.textColor.withValues(alpha: 0.7), fontSize: 12)),
                   const SizedBox(width: 12),
                   Text(timeString, style: TextStyle(color: themeManager.textColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                 ],
@@ -109,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ],
           ),
           const SizedBox(height: 4),
-          Divider(color: themeManager.textColor.withOpacity(0.1), height: 1),
+          Divider(color: themeManager.textColor.withValues(alpha: 0.1), height: 1),
         ],
       ),
     );
@@ -218,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildGestureTabItem(int index, IconData iconOutlined, IconData iconSolid, String label, ThemeManager themeManager) {
     final isSelected = _currentIndex == index;
-    final color = isSelected ? themeManager.accentColor : themeManager.textColor.withOpacity(0.4);
+    final color = isSelected ? themeManager.accentColor : themeManager.textColor.withValues(alpha: 0.4);
 
     return GestureDetector(
       onTap: () => _onTabTapped(index),
@@ -252,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isSelected ? themeManager.accentColor.withOpacity(0.1) : Colors.transparent,
+              color: isSelected ? themeManager.accentColor.withValues(alpha: 0.1) : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(isSelected ? iconSolid : iconOutlined, color: color, size: 28),

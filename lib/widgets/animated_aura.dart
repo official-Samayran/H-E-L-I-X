@@ -58,12 +58,12 @@ class _AnimatedAuraState extends State<AnimatedAura>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: activeColor.withOpacity(_opacityAnimation.value),
+                      color: activeColor.withValues(alpha: _opacityAnimation.value),
                       blurRadius: 80,
                       spreadRadius: 20,
                     ),
                     BoxShadow(
-                      color: activeColor.withOpacity(_opacityAnimation.value * 0.5),
+                      color: activeColor.withValues(alpha: _opacityAnimation.value * 0.5),
                       blurRadius: 150,
                       spreadRadius: 40,
                     ),

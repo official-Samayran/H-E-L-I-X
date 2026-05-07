@@ -53,7 +53,12 @@ class ConnectionService extends ChangeNotifier {
     if (savedPrompt != null && savedPrompt.trim().isNotEmpty) {
       _systemPrompt = savedPrompt;
     } else {
-      _systemPrompt = 'Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain.';
+      _systemPrompt = 'Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain. '
+          'You are now a Coding Assistant with PC access. You can perform the following actions by including these specific tags in your response:\n'
+          '1. To write a file: [WRITE:path/to/file]CONTENT_HERE[/WRITE]\n'
+          '2. To execute a command: [EXECUTE:command_here]\n'
+          '3. To read a file: [READ:path/to/file]\n'
+          'Your workspace is restricted to E:\\Helix_Projects. Always use full paths within this directory.';
     }
     
     final prefs = await SharedPreferences.getInstance();
@@ -170,6 +175,23 @@ class ConnectionService extends ChangeNotifier {
     }
   }
 
+  Future<bool> sendPCCommand(String commandString) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_baseProvider.executeUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'command': commandString,
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("PC Command failed: $e");
+      return false;
+    }
+  }
+
   Future<bool> _pingPort(String host, int port) async {
     try {
       final socket = await Socket.connect(host, port, timeout: const Duration(seconds: 4));
@@ -254,6 +276,7 @@ class ConnectionService extends ChangeNotifier {
         }
       }
       _saveMessages();
+      await _processAITags(accumulatedText);
     } catch (e) {
       debugPrint('Ollama Connection Error: $e');
       _handleStateChange(false);
@@ -328,6 +351,7 @@ class ConnectionService extends ChangeNotifier {
         }
       }
       _saveMessages();
+      await _processAITags(accumulatedText);
     } catch (e) {
        addSystemMessage("Gemini Error: Could not connect to API.");
     } finally {
@@ -398,6 +422,86 @@ $historyContext
       debugPrint("Semantic search error: $e");
     }
     return [];
+  }
+
+  Future<void> _processAITags(String text) async {
+    debugPrint("🔍 Starting AI Tag Processing...");
+    
+    final writeRegex = RegExp(r'\[WRITE:(.*?)\](.*?)\[/WRITE\]', dotAll: true);
+    final executeRegex = RegExp(r'\[EXECUTE:(.*?)\]');
+    final readRegex = RegExp(r'\[READ:(.*?)\]');
+
+    // Handle READ tags
+    final readMatches = readRegex.allMatches(text);
+    for (var match in readMatches) {
+      final path = match.group(1);
+      if (path != null) {
+        debugPrint("📁 Step: Found READ tag for $path");
+        await _handlePCAgentRequest('read', {'path': path});
+      }
+    }
+
+    // Handle WRITE tags
+    final writeMatches = writeRegex.allMatches(text);
+    for (var match in writeMatches) {
+      final path = match.group(1);
+      final content = match.group(2);
+      if (path != null && content != null) {
+        debugPrint("📝 Step: Found WRITE tag for $path");
+        await _handlePCAgentRequest('write', {'path': path, 'content': content});
+      }
+    }
+
+    // Handle EXECUTE tags
+    final executeMatches = executeRegex.allMatches(text);
+    for (var match in executeMatches) {
+      final command = match.group(1);
+      if (command != null) {
+        debugPrint("⚡ Step: Found EXECUTE tag: $command");
+        await _handlePCAgentRequest('execute', {'command': command});
+      }
+    }
+    
+    debugPrint("🏁 Tag Processing Finished.");
+  }
+
+  Future<void> _handlePCAgentRequest(String endpoint, Map<String, dynamic> payload) async {
+    final ip = _baseProvider.hostIP;
+    
+    // Task 2: IP Verification Logic
+    if (ip.isEmpty || ip == '0.0.0.0') {
+      addSystemMessage("⚠️ Error: PC IP not configured in settings.");
+      debugPrint("⚠️ PC Agent Request Blocked: IP is null/empty.");
+      return;
+    }
+
+    final url = 'http://$ip:8888/$endpoint';
+    
+    // Task 1.2: BEFORE sending
+    addSystemMessage("📡 Sending request to PC Agent...");
+    debugPrint("📡 Step: Sending HTTP POST to $url");
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 10));
+
+      // Task 1.2: IF SUCCESS (200 OK)
+      if (response.statusCode == 200) {
+        addSystemMessage("✅ PC Agent: Operation Successful (File Created/Command Executed).");
+        debugPrint("✅ Step: 200 OK from PC Agent.");
+      } else {
+        // Task 1.2: IF FAIL (Error code)
+        addSystemMessage("❌ PC Agent Error: ${response.statusCode} - ${response.body}");
+        debugPrint("❌ Step: Error ${response.statusCode} from PC Agent.");
+      }
+    } catch (e) {
+      // Task 1.2: IF TIMEOUT/CONNECTION REFUSED
+      addSystemMessage("🚫 Connection Error: Could not reach PC Agent. Check IP and Port 8888.");
+      debugPrint("🚫 Step: Connection Failed - $e");
+    }
   }
 
   @override

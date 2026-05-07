@@ -21,7 +21,7 @@ class SystemHud extends StatelessWidget {
           child: Text(
             'SYSTEM STANDBY',
             style: TextStyle(
-              color: theme.textColor.withOpacity(0.5),
+              color: theme.textColor.withValues(alpha: 0.5),
               letterSpacing: 2,
               fontWeight: FontWeight.bold,
               fontSize: 12,
@@ -38,15 +38,15 @@ class SystemHud extends StatelessWidget {
             height: 120,
             margin: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: theme.chatBackgroundColor.withOpacity(0.3),
+              color: theme.chatBackgroundColor.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: theme.accentColor.withOpacity(0.1)),
+              border: Border.all(color: theme.accentColor.withValues(alpha: 0.1)),
             ),
             child: Center(
               child: Text(
                 'SYSTEM STANDBY',
                 style: TextStyle(
-                  color: theme.textColor.withOpacity(0.5),
+                  color: theme.textColor.withValues(alpha: 0.5),
                   letterSpacing: 2,
                   fontWeight: FontWeight.bold,
                 ),
@@ -67,7 +67,7 @@ class SystemHud extends StatelessWidget {
         child: Text(
           'CPU: ${data.cpu.toInt()}%  |  RAM: ${data.ram.toInt()}%  |  GPU: ${data.gpu.toInt()}%  |  TEMP: ${data.temp.toInt()}°C',
           style: TextStyle(
-            color: theme.textColor.withOpacity(0.7),
+            color: theme.textColor.withValues(alpha: 0.7),
             fontSize: 12,
             letterSpacing: 1.5,
           ),
@@ -80,12 +80,12 @@ class SystemHud extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.chatBackgroundColor.withOpacity(0.6),
+        color: theme.chatBackgroundColor.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: theme.accentColor.withOpacity(0.2)),
+        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
           )
         ],
@@ -124,7 +124,7 @@ class SystemHud extends StatelessWidget {
                       radius: 8,
                     ),
                     PieChartSectionData(
-                      color: theme.backgroundColor.withOpacity(0.5),
+                      color: theme.backgroundColor.withValues(alpha: 0.5),
                       value: 100 - value,
                       title: '',
                       radius: 8,
@@ -149,7 +149,7 @@ class SystemHud extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: theme.textColor.withOpacity(0.7),
+            color: theme.textColor.withValues(alpha: 0.7),
             fontSize: 10,
             letterSpacing: 1,
           ),
@@ -174,7 +174,7 @@ class SystemHud extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: theme.textColor.withOpacity(0.7),
+            color: theme.textColor.withValues(alpha: 0.7),
             fontSize: 10,
             letterSpacing: 1,
           ),
