@@ -25,6 +25,8 @@ class ChatBubble extends StatelessWidget {
     final isUser = message.role == MessageRole.user;
     final isSystem = message.role == MessageRole.system;
 
+    if (message.isHidden) return const SizedBox.shrink();
+
     if (theme.currentThemeType == AppThemeType.ascii) {
       return _buildAsciiBubble(context, theme, isUser, isSystem);
     }
@@ -145,8 +147,26 @@ class ChatBubble extends StatelessWidget {
                       ),
                     ],
                   )
-                : _buildMarkdown(context, theme, message.text + (isStreaming ? ' █' : '')),
+                : _buildMarkdown(context, theme, _getCleanText(message.text) + (isStreaming ? ' █' : '')),
           ),
+          if (!isUser && _hasActionTags(message.text))
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.s(context), vertical: 4.s(context)),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_fix_high, size: 14, color: theme.accentColor.withValues(alpha: 0.7)),
+                  const SizedBox(width: 8),
+                  Text(
+                    "🛠️ Helix is modifying files...",
+                    style: TextStyle(
+                      color: theme.accentColor.withValues(alpha: 0.7),
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (message.hasTaskIntent)
             Padding(
               padding: EdgeInsets.only(top: 4.s(context), bottom: 8.s(context), right: 8.s(context), left: 8.s(context)),
@@ -226,7 +246,7 @@ class ChatBubble extends StatelessWidget {
             if (i + maxChars < word.length) {
               lines.add(word.substring(i, i + maxChars));
             } else {
-              currentLine = '\${word.substring(i)} ';
+              currentLine = '${word.substring(i)} ';
             }
           }
         } else {
@@ -284,6 +304,22 @@ class ChatBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _getCleanText(String text) {
+    return text
+        .replaceAll(RegExp(r'\[WRITE:(.*?)\](.*?)\[/WRITE\]', dotAll: true), '')
+        .replaceAll(RegExp(r'\[EXECUTE:(.*?)\]'), '')
+        .replaceAll(RegExp(r'\[READ:(.*?)\]'), '')
+        .replaceAll(RegExp(r'\[LIST_FILES:(.*?)\]'), '')
+        .trim();
+  }
+
+  bool _hasActionTags(String text) {
+    return text.contains('[WRITE:') || 
+           text.contains('[EXECUTE:') || 
+           text.contains('[READ:') || 
+           text.contains('[LIST_FILES:');
   }
 }
 

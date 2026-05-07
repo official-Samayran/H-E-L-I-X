@@ -7,6 +7,7 @@ class ChatMessage {
   final bool isOfflineContext;
   final String? attachmentPath;
   final bool isImageAttachment;
+  final bool isHidden;
 
   ChatMessage({
     required this.text,
@@ -15,6 +16,7 @@ class ChatMessage {
     this.isOfflineContext = false,
     this.attachmentPath,
     this.isImageAttachment = false,
+    this.isHidden = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -25,6 +27,7 @@ class ChatMessage {
       'isOfflineContext': isOfflineContext,
       'attachmentPath': attachmentPath,
       'isImageAttachment': isImageAttachment,
+      'isHidden': isHidden,
     };
   }
 
@@ -36,6 +39,7 @@ class ChatMessage {
       isOfflineContext: json['isOfflineContext'] ?? false,
       attachmentPath: json['attachmentPath'],
       isImageAttachment: json['isImageAttachment'] ?? false,
+      isHidden: json['isHidden'] ?? false,
     );
   }
 

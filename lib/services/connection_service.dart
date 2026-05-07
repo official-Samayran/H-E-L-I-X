@@ -58,6 +58,7 @@ class ConnectionService extends ChangeNotifier {
           '1. To write a file: [WRITE:path/to/file]CONTENT_HERE[/WRITE]\n'
           '2. To execute a command: [EXECUTE:command_here]\n'
           '3. To read a file: [READ:path/to/file]\n'
+          '4. To list files in workspace: [LIST_FILES:path]. Use this to understand project structure before writing code.\n'
           'Your workspace is restricted to E:\\Helix_Projects. Always use full paths within this directory.';
     }
     
@@ -204,6 +205,17 @@ class ConnectionService extends ChangeNotifier {
 
   void addSystemMessage(String text) {
     _messages.add(ChatMessage(text: text, role: MessageRole.system, timestamp: DateTime.now()));
+    _saveMessages();
+    notifyListeners();
+  }
+
+  void addHiddenSystemMessage(String text) {
+    _messages.add(ChatMessage(
+      text: text, 
+      role: MessageRole.system, 
+      timestamp: DateTime.now(),
+      isHidden: true,
+    ));
     _saveMessages();
     notifyListeners();
   }
@@ -430,6 +442,17 @@ $historyContext
     final writeRegex = RegExp(r'\[WRITE:(.*?)\](.*?)\[/WRITE\]', dotAll: true);
     final executeRegex = RegExp(r'\[EXECUTE:(.*?)\]');
     final readRegex = RegExp(r'\[READ:(.*?)\]');
+    final listRegex = RegExp(r'\[LIST_FILES:(.*?)\]');
+
+    // Handle LIST_FILES tags
+    final listMatches = listRegex.allMatches(text);
+    for (var match in listMatches) {
+      final path = match.group(1);
+      if (path != null) {
+        debugPrint("📂 Step: Found LIST_FILES tag for $path");
+        await _handlePCAgentRequest('list', {'path': path}, isListRequest: true);
+      }
+    }
 
     // Handle READ tags
     final readMatches = readRegex.allMatches(text);
@@ -465,7 +488,7 @@ $historyContext
     debugPrint("🏁 Tag Processing Finished.");
   }
 
-  Future<void> _handlePCAgentRequest(String endpoint, Map<String, dynamic> payload) async {
+  Future<void> _handlePCAgentRequest(String endpoint, Map<String, dynamic> payload, {bool isListRequest = false}) async {
     final ip = _baseProvider.hostIP;
     
     // Task 2: IP Verification Logic
@@ -490,7 +513,12 @@ $historyContext
 
       // Task 1.2: IF SUCCESS (200 OK)
       if (response.statusCode == 200) {
-        addSystemMessage("✅ PC Agent: Operation Successful (File Created/Command Executed).");
+        if (isListRequest) {
+          addHiddenSystemMessage("📁 Workspace Structure for ${payload['path']}:\n${response.body}");
+          addSystemMessage("✅ Helix has indexed the directory: ${payload['path']}");
+        } else {
+          addSystemMessage("✅ PC Agent: Operation Successful (File Created/Command Executed).");
+        }
         debugPrint("✅ Step: 200 OK from PC Agent.");
       } else {
         // Task 1.2: IF FAIL (Error code)
