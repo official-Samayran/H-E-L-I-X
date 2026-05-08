@@ -33,6 +33,12 @@ class BaseConnectionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setHostIP(String ip) {
+    _hostIP = ip;
+    _storage.write(key: 'host_ip', value: ip);
+    notifyListeners();
+  }
+
   // Dynamic URI Formats
   String get ollamaUrl => 'http://$_hostIP:11434/api/generate';
   String get executeUrl => 'http://$_hostIP:8000/execute';

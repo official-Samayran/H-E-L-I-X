@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibration/vibration.dart';
 import 'app_theme.dart';
 export 'app_theme.dart';
 
 enum ConfigLayoutType { tiles, switches }
+enum AnimationType { flip, slide, morph, blur }
 
 class ThemeManager extends ChangeNotifier {
   AppThemeType _currentThemeType = AppThemeType.oled;
@@ -17,6 +19,9 @@ class ThemeManager extends ChangeNotifier {
   ConfigLayoutType _configLayoutType = ConfigLayoutType.tiles;
   double _tileWidth = 105.0;
   double _tileHeight = 105.0;
+  double _cardHeightMultiplier = 1.0;
+  double _cardWidthMultiplier = 1.0;
+  AnimationType _animationType = AnimationType.flip;
 
   AppThemeType get currentThemeType => _currentThemeType;
   bool get fpsSyncLock => _fpsSyncLock;
@@ -26,6 +31,9 @@ class ThemeManager extends ChangeNotifier {
   ConfigLayoutType get configLayoutType => _configLayoutType;
   double get tileWidth => _tileWidth;
   double get tileHeight => _tileHeight;
+  double get cardHeightMultiplier => _cardHeightMultiplier;
+  double get cardWidthMultiplier => _cardWidthMultiplier;
+  AnimationType get animationType => _animationType;
   
   AppThemeData get currentTheme => AppThemes.themes[_currentThemeType]!;
 
@@ -42,6 +50,9 @@ class ThemeManager extends ChangeNotifier {
     _configLayoutType = ConfigLayoutType.values[prefs.getInt('config_layout_type') ?? ConfigLayoutType.tiles.index];
     _tileWidth = prefs.getDouble('tile_width') ?? 105.0;
     _tileHeight = prefs.getDouble('tile_height') ?? 105.0;
+    _cardHeightMultiplier = prefs.getDouble('card_height_mult') ?? 1.0;
+    _cardWidthMultiplier = prefs.getDouble('card_width_mult') ?? 1.0;
+    _animationType = AnimationType.values[prefs.getInt('animation_type') ?? AnimationType.flip.index];
     notifyListeners();
   }
 
@@ -75,6 +86,7 @@ class ThemeManager extends ChangeNotifier {
       _hapticIntensity = intensity;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('haptic_intensity', intensity);
+      triggerHaptic(); // Provide immediate feedback
       notifyListeners();
     }
   }
@@ -106,15 +118,59 @@ class ThemeManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  void triggerHaptic() {
+  void setCardDimensions(double widthMult, double heightMult) async {
+    _cardWidthMultiplier = widthMult;
+    _cardHeightMultiplier = heightMult;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('card_width_mult', widthMult);
+    await prefs.setDouble('card_height_mult', heightMult);
+    notifyListeners();
+  }
+
+  void setAnimationType(AnimationType type) async {
+    if (_animationType != type) {
+      _animationType = type;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('animation_type', type.index);
+      notifyListeners();
+    }
+  }
+
+  // --- REVOLUTIONARY HAPTIC ENGINE ---
+  
+  void triggerHaptic() async {
     if (_hapticIntensity == 0.0) return;
-    
-    if (_hapticIntensity >= 0.8) {
-      HapticFeedback.heavyImpact();
-    } else if (_hapticIntensity >= 0.4) {
-      HapticFeedback.mediumImpact();
+    if (await Vibration.hasVibrator() ?? false) {
+      int duration = (15 + (_hapticIntensity * 40)).toInt();
+      int amplitude = (100 + (_hapticIntensity * 155)).toInt();
+      Vibration.vibrate(duration: duration, amplitude: amplitude);
     } else {
-      HapticFeedback.lightImpact();
+      HapticFeedback.mediumImpact();
+    }
+  }
+
+  void triggerSelectionHaptic() async {
+    if (_hapticIntensity == 0.0) return;
+    if (await Vibration.hasVibrator() ?? false) {
+      Vibration.vibrate(duration: 8, amplitude: (80 + (_hapticIntensity * 100)).toInt());
+    } else {
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  void triggerSuccessHaptic() async {
+    if (_hapticIntensity == 0.0) return;
+    if (await Vibration.hasVibrator() ?? false) {
+      Vibration.vibrate(pattern: [0, 10, 30, 20], intensities: [0, (100 * _hapticIntensity).toInt(), 0, (200 * _hapticIntensity).toInt()]);
+    } else {
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  void triggerScrollTick() async {
+    if (_hapticIntensity < 0.2) return;
+    if (await Vibration.hasVibrator() ?? false) {
+      Vibration.vibrate(duration: 5, amplitude: (40 + (_hapticIntensity * 60)).toInt());
     }
   }
 

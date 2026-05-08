@@ -18,11 +18,13 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'services/task_service.dart';
+import 'services/permission_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
   await NotificationService.initialize();
+  await PermissionService.requestAllPermissions();
   
   if (Platform.isAndroid) {
     final prefs = await SharedPreferences.getInstance();
