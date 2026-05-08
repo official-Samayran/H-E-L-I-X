@@ -65,7 +65,7 @@ class SystemHud extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16),
         alignment: Alignment.center,
         child: Text(
-          'CPU: ${data.cpu.toInt()}%  |  RAM: ${data.ram.toInt()}%  |  GPU: ${data.gpu.toInt()}%  |  TEMP: ${data.temp.toInt()}°C',
+          'CPU: ${data.cpu.toInt()}%  |  RAM: ${data.ram.toInt()}%  |  GPU: ${data.gpu.load.toInt()}%  |  TEMP: ${data.temp.toInt()}°C',
           style: TextStyle(
             color: theme.textColor.withValues(alpha: 0.7),
             fontSize: 12,
@@ -95,7 +95,7 @@ class SystemHud extends StatelessWidget {
         children: [
           _buildGauge('CPU', data.cpu, theme),
           _buildGauge('RAM', data.ram, theme),
-          _buildGauge('GPU', data.gpu, theme),
+          _buildGauge('GPU', data.gpu.load, theme),
           _buildTextStat('TEMP', '${data.temp.toInt()}°C', theme),
         ],
       ),

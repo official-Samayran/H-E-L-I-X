@@ -1022,24 +1022,41 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                       vertical: 8,
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.keyboard_arrow_down,
-                            color: themeManager.textColor,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: themeManager.accentColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: themeManager.accentColor.withValues(alpha: 0.2)),
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _isChatExpanded = false;
-                              FocusScope.of(context).unfocus();
-                            });
-                            Provider.of<ThemeManager>(
-                              context,
-                              listen: false,
-                            ).triggerHaptic();
-                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                connectionService.masterModelMode == MasterModelMode.automatic 
+                                    ? Icons.auto_awesome 
+                                    : connectionService.masterModelMode == MasterModelMode.local 
+                                        ? Icons.lan 
+                                        : Icons.cloud,
+                                size: 14,
+                                color: themeManager.accentColor,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                connectionService.masterModelMode.name.toUpperCase(),
+                                style: TextStyle(
+                                  color: themeManager.accentColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 48), // Placeholder for floating button area
                       ],
                     ),
                   ),
@@ -1070,6 +1087,23 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                         },
                       ),
                       Positioned(
+                        top: 0,
+                        right: 16,
+                        child: FloatingActionButton(
+                          mini: true,
+                          backgroundColor: themeManager.accentColor.withValues(alpha: 0.9),
+                          elevation: 8,
+                          onPressed: () {
+                            setState(() {
+                              _isChatExpanded = false;
+                              FocusScope.of(context).unfocus();
+                            });
+                            Provider.of<ThemeManager>(context, listen: false).triggerHaptic();
+                          },
+                          child: Icon(Icons.close, color: themeManager.backgroundColor, size: 20),
+                        ),
+                      ),
+                      Positioned(
                         bottom: 16,
                         right: 16,
                         child: AnimatedScale(
@@ -1078,6 +1112,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                           curve: Curves.easeOutBack,
                           child: FloatingActionButton(
                             mini: true,
+                            heroTag: 'scrollToBottom',
                             backgroundColor: themeManager.accentColor
                                 .withValues(alpha: 0.8),
                             elevation: 4,

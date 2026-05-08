@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'base_connection_provider.dart';
 import '../models/chat_message.dart';
 
+enum MasterModelMode { automatic, local, cloud }
+
 class SearchResultItem {
   final int index;
   final String summary;
@@ -26,6 +28,7 @@ class ConnectionService extends ChangeNotifier {
   String _selectedModel = 'Ollama'; // Defaults to Ollama for automatic fallback
   String _systemPrompt = '';
   Map<String, String> _customPersonas = {};
+  MasterModelMode _masterModelMode = MasterModelMode.automatic;
   
   final _storage = const FlutterSecureStorage();
   final List<ChatMessage> _messages = [];
@@ -39,6 +42,7 @@ class ConnectionService extends ChangeNotifier {
   String get selectedModel => _selectedModel;
   String get systemPrompt => _systemPrompt;
   Map<String, String> get customPersonas => Map.unmodifiable(_customPersonas);
+  MasterModelMode get masterModelMode => _masterModelMode;
 
   ConnectionService(this._baseProvider) {
     _initStorage();
@@ -49,12 +53,18 @@ class ConnectionService extends ChangeNotifier {
     _geminiApiKey = await _storage.read(key: 'gemini_api_key');
     _selectedModel = await _storage.read(key: 'selected_model') ?? 'Gemini';
     
+    final savedModeIndex = await _storage.read(key: 'master_model_mode');
+    if (savedModeIndex != null) {
+      _masterModelMode = MasterModelMode.values[int.parse(savedModeIndex)];
+    }
+    
     final savedPrompt = await _storage.read(key: 'system_prompt');
     if (savedPrompt != null && savedPrompt.trim().isNotEmpty) {
       _systemPrompt = savedPrompt;
     } else {
       _systemPrompt = 'Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain. '
-          'You are now a Coding Assistant with PC access. You can perform the following actions by including these specific tags in your response:\n'
+          'You are a Flutter Developer AI. To perform terminal actions, use this tag: [EXECUTE:command_here] Example: To install dependencies, use [EXECUTE:flutter pub get]. Always navigate to the correct project directory before running commands if needed. '
+          'You can also perform these actions:\n'
           '1. To write a file: [WRITE:path/to/file]CONTENT_HERE[/WRITE]\n'
           '2. To execute a command: [EXECUTE:command_here]\n'
           '3. To read a file: [READ:path/to/file]\n'
@@ -96,6 +106,12 @@ class ConnectionService extends ChangeNotifier {
   Future<void> setModel(String model) async {
     await _storage.write(key: 'selected_model', value: model);
     _selectedModel = model;
+    notifyListeners();
+  }
+
+  Future<void> setMasterModelMode(MasterModelMode mode) async {
+    await _storage.write(key: 'master_model_mode', value: mode.index.toString());
+    _masterModelMode = mode;
     notifyListeners();
   }
 
@@ -226,10 +242,25 @@ class ConnectionService extends ChangeNotifier {
     final msgText = text.trim().isEmpty ? "Attached file" : text.trim();
     addUserMessage(msgText, attachmentPath: attachmentPath, isImage: isImage);
 
-    if (_isLocalAvailable && _selectedModel == 'Ollama') {
-      await _sendToOllama(msgText);
-    } else {
-      await _sendToGemini(msgText);
+    switch (_masterModelMode) {
+      case MasterModelMode.automatic:
+        if (_isLocalAvailable) {
+          await _sendToOllama(msgText);
+        } else {
+          await _sendToGemini(msgText);
+        }
+        break;
+      case MasterModelMode.local:
+        if (_isLocalAvailable) {
+          await _sendToOllama(msgText);
+        } else {
+          addSystemMessage("Pc offline. Cannot process message in Local mode.");
+          // No fallback
+        }
+        break;
+      case MasterModelMode.cloud:
+        await _sendToGemini(msgText);
+        break;
     }
   }
 
@@ -501,7 +532,14 @@ $historyContext
     final url = 'http://$ip:8888/$endpoint';
     
     // Task 1.2: BEFORE sending
-    addSystemMessage("📡 Sending request to PC Agent...");
+    if (endpoint == 'execute') {
+      addSystemMessage("🛠️ Helix: Executing terminal command...");
+    } else if (isListRequest) {
+      addSystemMessage("🔍 Helix: Mapping project structure...");
+    } else {
+      addSystemMessage("📡 Sending request to PC Agent ($endpoint)...");
+    }
+    
     debugPrint("📡 Step: Sending HTTP POST to $url");
 
     try {

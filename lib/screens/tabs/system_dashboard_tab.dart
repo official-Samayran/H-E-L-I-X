@@ -10,6 +10,8 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:system_info2/system_info2.dart';
+import 'package:shimmer/shimmer.dart';
+import '../../models/telemetry_model.dart';
 
 import '../../theme/theme_manager.dart';
 import '../../services/telemetry_service.dart';
@@ -234,7 +236,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
 
     return FlipGlassCard(
       isFlipped: _isFlipped,
-      height: 480,
+      height: 520,
       front: _buildFront(theme, telemetry),
       back: _buildBack(theme, telemetry),
     );
@@ -302,42 +304,247 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
               )
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           // Action Buttons
           Row(
             children: [
               _buildActionButton(theme, 'CPU PROCS', Icons.memory, () => _flipTo(0)),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               _buildActionButton(theme, 'MEM PROCS', Icons.memory_outlined, () => _flipTo(1)),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               _buildActionButton(theme, 'HARDWARE', Icons.dns_outlined, () => _flipTo(2)),
             ],
           ),
-          const SizedBox(height: 24),
-          // Graphs
+          const SizedBox(height: 16),
+          // Main Telemetry Grid
           Expanded(
-            child: Row(
+            child: !isOnline ? _buildShimmerLoading(theme) : ListView(
+              physics: const BouncingScrollPhysics(),
               children: [
-                Expanded(child: _buildMiniGraph(theme, 'CPU', data.cpu, telemetry.history.map((e) => e.cpu).toList(), Colors.cyanAccent)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildMiniGraph(theme, 'RAM', data.ram, telemetry.history.map((e) => e.ram).toList(), Colors.greenAccent)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildMiniGraph(theme, 'GPU', data.gpu, telemetry.history.map((e) => e.gpu).toList(), Colors.purpleAccent)),
+                Row(
+                  children: [
+                    Expanded(child: _buildMiniGraph(theme, 'CPU', data.cpu, telemetry.history.map((e) => e.cpu).toList(), Colors.cyanAccent)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildMiniGraph(theme, 'RAM', data.ram, telemetry.history.map((e) => e.ram).toList(), Colors.greenAccent)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildGpuModule(theme, data),
+                const SizedBox(height: 16),
+                _buildNetworkModule(theme, telemetry),
+                const SizedBox(height: 16),
+                _buildDiskHealthModule(theme, data),
+                const SizedBox(height: 16),
+                _buildProcessWatcher(theme, data),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          // Mini Metrics
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerLoading(ThemeManager theme) {
+    return Shimmer.fromColors(
+      baseColor: theme.textColor.withValues(alpha: 0.05),
+      highlightColor: theme.textColor.withValues(alpha: 0.1),
+      child: ListView.builder(
+        itemCount: 4,
+        itemBuilder: (_, __) => Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGpuModule(ThemeManager theme, TelemetryData data) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.chatBackgroundColor.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.textColor.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('GPU MONITOR', style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildMiniMetric(theme, 'TEMP', '${data.temp.toStringAsFixed(1)}°C'),
-              _buildMiniMetric(theme, 'FAN', '${data.fanSpeed.toInt()} RPM'),
-              _buildMiniMetric(theme, 'DISK', '${data.disk.toStringAsFixed(1)}%'),
+              _buildTripleIndicator(theme, 'LOAD', '${data.gpu.load.toInt()}%', Colors.purpleAccent),
+              _buildTripleIndicator(theme, 'VRAM', '${data.gpu.memory.toInt()}%', Colors.deepPurpleAccent),
+              _buildTripleIndicator(theme, 'TEMP', '${data.gpu.temp.toInt()}°C', Colors.redAccent),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTripleIndicator(ThemeManager theme, String label, String val, Color color) {
+    return Column(
+      children: [
+        Text(val, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 9, letterSpacing: 1)),
+      ],
+    );
+  }
+
+  Widget _buildNetworkModule(ThemeManager theme, TelemetryService telemetry) {
+    final data = telemetry.currentData;
+    final historyDown = telemetry.history.map((e) => e.network.down).toList();
+    final historyUp = telemetry.history.map((e) => e.network.up).toList();
+
+    return Container(
+      height: 120,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.chatBackgroundColor.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.textColor.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('NETWORK', style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _buildNetworkStat(theme, 'DOWN', '${data.network.down.toStringAsFixed(1)} KB/s', Colors.cyanAccent),
+                const SizedBox(height: 8),
+                _buildNetworkStat(theme, 'UP', '${data.network.up.toStringAsFixed(1)} KB/s', const Color(0xFFFF00FF)),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LineChart(
+                LineChartData(
+                  gridData: const FlGridData(show: false),
+                  titlesData: const FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  minX: 0,
+                  maxX: 30, // 30 seconds
+                  lineBarsData: [
+                    _buildNetworkLine(historyDown, Colors.cyanAccent),
+                    _buildNetworkLine(historyUp, const Color(0xFFFF00FF)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  LineChartBarData _buildNetworkLine(List<double> history, Color color) {
+    final displayHistory = history.length > 30 ? history.sublist(history.length - 30) : history;
+    final spots = List.generate(displayHistory.length, (i) => FlSpot(i.toDouble(), displayHistory[i]));
+    
+    return LineChartBarData(
+      spots: spots.isEmpty ? [const FlSpot(0, 0)] : spots,
+      isCurved: true,
+      color: color,
+      barWidth: 2,
+      dotData: const FlDotData(show: false),
+      belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.1)),
+    );
+  }
+
+  Widget _buildNetworkStat(ThemeManager theme, String label, String val, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.3), fontSize: 8, letterSpacing: 1)),
+        Text(val, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+      ],
+    );
+  }
+
+  Widget _buildDiskHealthModule(ThemeManager theme, TelemetryData data) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.chatBackgroundColor.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.textColor.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildHealthStat(theme, 'DISK READ', '${data.disk.read.toStringAsFixed(1)} MB/s', Icons.download),
+          _buildHealthStat(theme, 'DISK WRITE', '${data.disk.write.toStringAsFixed(1)} MB/s', Icons.upload),
+          _buildHealthStat(theme, 'FAN SPEED', '${data.fanSpeed.toInt()} RPM', Icons.cyclone),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHealthStat(ThemeManager theme, String label, String val, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, size: 16, color: theme.accentColor.withValues(alpha: 0.5)),
+        const SizedBox(height: 4),
+        Text(val, style: TextStyle(color: theme.textColor, fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+        Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.3), fontSize: 8)),
+      ],
+    );
+  }
+
+  Widget _buildProcessWatcher(ThemeManager theme, TelemetryData data) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.chatBackgroundColor.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.textColor.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('PROCESS WATCHER', style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          _buildProcessRow(theme, 'TOP CPU', data.topCpuApp, Icons.bolt, Colors.orangeAccent),
+          const SizedBox(height: 8),
+          _buildProcessRow(theme, 'TOP RAM', data.topRamApp, Icons.storage, Colors.blueAccent),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProcessRow(ThemeManager theme, String label, String app, IconData icon, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+          child: Icon(icon, size: 14, color: color),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.4), fontSize: 8)),
+            Text(app, style: TextStyle(color: theme.textColor, fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ],
     );
   }
 
@@ -412,7 +619,7 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
       physics: const BouncingScrollPhysics(),
       children: [
         _buildHardwareSection(theme, 'STORAGE (MAIN DRIVE)', Icons.storage, [
-          _buildHardwareStat(theme, 'Usage', '${data.disk.toStringAsFixed(1)}%'),
+          _buildHardwareStat(theme, 'Usage', '${data.disk.usage.toStringAsFixed(1)}%'),
           _buildHardwareStat(theme, 'Health', 'Good'),
           _buildHardwareStat(theme, 'Temp', '${data.temp.toStringAsFixed(1)}°C'),
         ]),
@@ -497,35 +704,34 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
         const SizedBox(height: 4),
         Text('${currentVal.toStringAsFixed(1)}%', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
         const SizedBox(height: 8),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.chatBackgroundColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: LineChart(
-                LineChartData(
-                  gridData: const FlGridData(show: false),
-                  titlesData: const FlTitlesData(show: false),
-                  borderData: FlBorderData(show: false),
-                  minX: 0,
-                  maxX: 60,
-                  minY: 0,
-                  maxY: 100,
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      color: color,
-                      barWidth: 2,
-                      isStrokeCapRound: true,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.1)),
-                    ),
-                  ],
-                ),
+        Container(
+          height: 60, // Fixed height for ListView compatibility
+          decoration: BoxDecoration(
+            color: theme.chatBackgroundColor.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(show: false),
+                borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: 60,
+                minY: 0,
+                maxY: 100,
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: color,
+                    barWidth: 2,
+                    isStrokeCapRound: true,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.1)),
+                  ),
+                ],
               ),
             ),
           ),

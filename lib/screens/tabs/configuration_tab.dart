@@ -189,8 +189,8 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 105,
-        height: 105,
+        width: theme.tileWidth,
+        height: theme.tileHeight,
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: value ? theme.accentColor : theme.chatBackgroundColor,
@@ -206,17 +206,17 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
           children: [
             Icon(
               icon,
-              size: 28,
+              size: (theme.tileWidth + theme.tileHeight) / 8,
               color: value ? theme.backgroundColor : theme.textColor.withValues(alpha: 0.7),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               label,
               textAlign: TextAlign.center,
               maxLines: 2,
               style: TextStyle(
                 color: value ? theme.backgroundColor : theme.textColor.withValues(alpha: 0.9),
-                fontSize: 11,
+                fontSize: (theme.tileWidth + theme.tileHeight) / 20,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -224,6 +224,37 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
         ),
       ),
     );
+  }
+
+  Widget _buildToggleSwitch(String label, IconData icon, bool value, ValueChanged<bool> onChanged, ThemeManager theme) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 0),
+      leading: Icon(icon, color: theme.accentColor),
+      title: Text(label, style: TextStyle(color: theme.textColor, fontSize: 14)),
+      trailing: Switch(
+        value: value,
+        onChanged: (v) {
+          _resetInactivityTimer();
+          onChanged(v);
+        },
+        activeColor: theme.accentColor,
+      ),
+    );
+  }
+
+  Widget _buildSettingsGroup(ThemeManager theme, List<Widget> children) {
+    if (theme.configLayoutType == ConfigLayoutType.tiles) {
+      return Wrap(
+        alignment: WrapAlignment.start,
+        spacing: 12,
+        runSpacing: 12,
+        children: children.whereType<GestureDetector>().toList(),
+      );
+    } else {
+      // Map tile-like widgets to toggle switches if they are in switches mode
+      // This is a bit manual since children are passed as a list of widgets
+      return Column(children: children);
+    }
   }
 
   Widget _buildSectionHeader(String title, ThemeManager theme) {
@@ -440,37 +471,90 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
                 Provider.of<ThemeManager>(context, listen: false).setUiScale(val);
               },
             ),
+            const SizedBox(height: 16),
+            _buildSectionHeader('Layout Engine', theme),
+            DropdownButtonFormField<ConfigLayoutType>(
+              value: theme.configLayoutType,
+              dropdownColor: theme.chatBackgroundColor,
+              style: TextStyle(color: theme.textColor),
+              onChanged: (val) {
+                if (val != null) theme.setConfigLayoutType(val);
+              },
+              decoration: InputDecoration(
+                labelText: 'Config Menu Style',
+                labelStyle: TextStyle(color: theme.textColor.withValues(alpha: 0.6)),
+                filled: true,
+                fillColor: theme.chatBackgroundColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+              items: const [
+                DropdownMenuItem(value: ConfigLayoutType.tiles, child: Text('Classic Tiles')),
+                DropdownMenuItem(value: ConfigLayoutType.switches, child: Text('Modern Switches')),
+              ],
+            ),
+            if (theme.configLayoutType == ConfigLayoutType.tiles) ...[
+              const SizedBox(height: 24),
+              Text('Tile Width: ${theme.tileWidth.toInt()}px', style: TextStyle(color: theme.textColor, fontSize: 13)),
+              Slider(
+                value: theme.tileWidth,
+                min: 80,
+                max: 160,
+                activeColor: theme.accentColor,
+                onChanged: (v) => theme.setTileDimensions(v, theme.tileHeight),
+              ),
+              Text('Tile Height: ${theme.tileHeight.toInt()}px', style: TextStyle(color: theme.textColor, fontSize: 13)),
+              Slider(
+                value: theme.tileHeight,
+                min: 80,
+                max: 160,
+                activeColor: theme.accentColor,
+                onChanged: (v) => theme.setTileDimensions(theme.tileWidth, v),
+              ),
+            ],
           ],
         ),
       ),
       const SizedBox(height: 16),
-      Wrap(
-        alignment: WrapAlignment.start,
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _buildControlCenterTile('Markdown Parsing', Icons.code, _markdownParsing, (v) => _toggleGeneric('markdown_parsing', v, (val) => setState(() => _markdownParsing = val)), theme),
-          _buildControlCenterTile('Auto-Scroll', Icons.arrow_downward, _autoScroll, (v) => _toggleGeneric('auto_scroll', v, (val) => setState(() => _autoScroll = val)), theme),
-          _buildControlCenterTile('Typing Cursor', Icons.keyboard, _typingCursor, (v) => _toggleGeneric('typing_cursor', v, (val) => setState(() => _typingCursor = val)), theme),
-        ],
-      ),
+      _buildAestheticsToggles(theme),
     ];
   }
 
+  Widget _buildAestheticsToggles(ThemeManager theme) {
+    final widgets = [
+      _buildSettingWidget('Markdown Parsing', Icons.code, _markdownParsing, (v) => _toggleGeneric('markdown_parsing', v, (val) => setState(() => _markdownParsing = val)), theme),
+      _buildSettingWidget('Auto-Scroll', Icons.arrow_downward, _autoScroll, (v) => _toggleGeneric('auto_scroll', v, (val) => setState(() => _autoScroll = val)), theme),
+      _buildSettingWidget('Typing Cursor', Icons.keyboard, _typingCursor, (v) => _toggleGeneric('typing_cursor', v, (val) => setState(() => _typingCursor = val)), theme),
+    ];
+
+    if (theme.configLayoutType == ConfigLayoutType.tiles) {
+      return Wrap(spacing: 12, runSpacing: 12, children: widgets);
+    } else {
+      return Column(children: widgets);
+    }
+  }
+
+  Widget _buildSettingWidget(String label, IconData icon, bool value, ValueChanged<bool> onChanged, ThemeManager theme) {
+    if (theme.configLayoutType == ConfigLayoutType.tiles) {
+      return _buildControlCenterTile(label, icon, value, onChanged, theme);
+    } else {
+      return _buildToggleSwitch(label, icon, value, onChanged, theme);
+    }
+  }
+
   List<Widget> _buildHardwareContent(ThemeManager theme) {
+    final widgets = [
+      _buildSettingWidget('Secure Screen', Icons.security, _secureScreen, _toggleSecureScreen, theme),
+      _buildSettingWidget('144 FPS Lock', Icons.speed, _fpsSyncLock, _toggleFpsSyncLock, theme),
+      _buildSettingWidget('FPS Counter', Icons.monitor, theme.showFpsCounter, (v) => theme.toggleFpsCounter(v), theme),
+      _buildSettingWidget('Hardware Accel', Icons.memory, _hardwareAccel, (v) => _toggleGeneric('hardware_accel', v, (val) => setState(() => _hardwareAccel = val)), theme),
+      _buildSettingWidget('Background Polling', Icons.sync, _bgPolling, (v) => _toggleGeneric('bg_polling', v, (val) => setState(() => _bgPolling = val)), theme),
+    ];
+
     return [
-      Wrap(
-        alignment: WrapAlignment.start,
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _buildControlCenterTile('Secure Screen', Icons.security, _secureScreen, _toggleSecureScreen, theme),
-          _buildControlCenterTile('144 FPS Lock', Icons.speed, _fpsSyncLock, _toggleFpsSyncLock, theme),
-          _buildControlCenterTile('FPS Counter', Icons.monitor, theme.showFpsCounter, (v) => theme.toggleFpsCounter(v), theme),
-          _buildControlCenterTile('Hardware Accel', Icons.memory, _hardwareAccel, (v) => _toggleGeneric('hardware_accel', v, (val) => setState(() => _hardwareAccel = val)), theme),
-          _buildControlCenterTile('Background Polling', Icons.sync, _bgPolling, (v) => _toggleGeneric('bg_polling', v, (val) => setState(() => _bgPolling = val)), theme),
-        ],
-      ),
+      if (theme.configLayoutType == ConfigLayoutType.tiles)
+        Wrap(spacing: 12, runSpacing: 12, children: widgets)
+      else
+        Column(children: widgets),
       Padding(
         padding: const EdgeInsets.only(top: 24, bottom: 8),
         child: Text('Haptic Intensity', style: TextStyle(color: theme.textColor, fontSize: 14)),
@@ -501,7 +585,32 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
   }
 
   List<Widget> _buildNetworkContent(ThemeManager theme) {
+    final connectionService = Provider.of<ConnectionService>(context);
+    
     return [
+      _buildSectionHeader('AI Brain Mode', theme),
+      SegmentedButton<MasterModelMode>(
+        segments: const [
+          ButtonSegment(value: MasterModelMode.automatic, label: Text('AUTO'), icon: Icon(Icons.auto_awesome)),
+          ButtonSegment(value: MasterModelMode.local, label: Text('LOCAL'), icon: Icon(Icons.lan)),
+          ButtonSegment(value: MasterModelMode.cloud, label: Text('CLOUD'), icon: Icon(Icons.cloud)),
+        ],
+        selected: {connectionService.masterModelMode},
+        onSelectionChanged: (newSelection) {
+          connectionService.setMasterModelMode(newSelection.first);
+        },
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) return theme.accentColor;
+            return theme.chatBackgroundColor;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) return theme.backgroundColor;
+            return theme.textColor;
+          }),
+        ),
+      ),
+      const SizedBox(height: 24),
       _buildField('Host IP Address', _ipController, theme),
       const SizedBox(height: 16),
       _buildField('PC Name', _nameController, theme),
