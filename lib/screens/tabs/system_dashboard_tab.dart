@@ -739,16 +739,6 @@ class _PCTelemetryCardState extends State<PCTelemetryCard> {
       ],
     );
   }
-
-  Widget _buildMiniMetric(ThemeManager theme, String label, String val) {
-    return Column(
-      children: [
-        Text(label, style: TextStyle(color: theme.textColor.withValues(alpha: 0.5), fontSize: 10, letterSpacing: 1)),
-        const SizedBox(height: 4),
-        Text(val, style: TextStyle(color: theme.textColor, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
-      ],
-    );
-  }
 }
 
 // ---------------------------------------------------------

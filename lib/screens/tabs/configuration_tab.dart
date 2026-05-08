@@ -21,8 +21,10 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
   late TextEditingController _nameController;
   late TextEditingController _macController;
   late TextEditingController _apiKeyController;
-  late TextEditingController _personalizationController;
-  String _selectedPreset = 'Custom';
+  late TextEditingController _helixPersonalizationController;
+  late TextEditingController _conodePersonalizationController;
+  String _selectedHelixPreset = 'Custom';
+  String _selectedConodePreset = 'Custom';
   
   final LocalAuthentication auth = LocalAuthentication();
   bool _isAuthenticated = false;
@@ -53,7 +55,8 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
     _nameController = TextEditingController(text: provider.pcName);
     _macController = TextEditingController(text: provider.macAddress);
     _apiKeyController = TextEditingController(text: connectionProvider.geminiApiKey ?? '');
-    _personalizationController = TextEditingController(text: connectionProvider.systemPrompt);
+    _helixPersonalizationController = TextEditingController(text: connectionProvider.helixSystemPrompt);
+    _conodePersonalizationController = TextEditingController(text: connectionProvider.conodeSystemPrompt);
     
     _loadSecureScreenState();
     _authenticate();
@@ -169,7 +172,8 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
     _nameController.dispose();
     _macController.dispose();
     _apiKeyController.dispose();
-    _personalizationController.dispose();
+    _helixPersonalizationController.dispose();
+    _conodePersonalizationController.dispose();
     _inactivityTimer?.cancel();
     super.dispose();
   }
@@ -242,20 +246,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
     );
   }
 
-  Widget _buildSettingsGroup(ThemeManager theme, List<Widget> children) {
-    if (theme.configLayoutType == ConfigLayoutType.tiles) {
-      return Wrap(
-        alignment: WrapAlignment.start,
-        spacing: 12,
-        runSpacing: 12,
-        children: children.whereType<GestureDetector>().toList(),
-      );
-    } else {
-      // Map tile-like widgets to toggle switches if they are in switches mode
-      // This is a bit manual since children are passed as a list of widgets
-      return Column(children: children);
-    }
-  }
+
 
   Widget _buildSectionHeader(String title, ThemeManager theme) {
     return Padding(
@@ -377,7 +368,11 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
                 ? Colors.black
                 : theme.chatBackgroundColor.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: theme.textColor.withValues(alpha: 0.05), width: 1),
+            border: Border.all(
+                color: theme.currentThemeType == AppThemeType.oled 
+                    ? theme.textColor.withValues(alpha: 0.3) 
+                    : theme.textColor.withValues(alpha: 0.05), 
+                width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
@@ -592,8 +587,8 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
       SegmentedButton<MasterModelMode>(
         segments: const [
           ButtonSegment(value: MasterModelMode.automatic, label: Text('AUTO'), icon: Icon(Icons.auto_awesome)),
-          ButtonSegment(value: MasterModelMode.local, label: Text('LOCAL'), icon: Icon(Icons.lan)),
-          ButtonSegment(value: MasterModelMode.cloud, label: Text('CLOUD'), icon: Icon(Icons.cloud)),
+          ButtonSegment(value: MasterModelMode.local, label: Text('H E L I X'), icon: Icon(Icons.lan)),
+          ButtonSegment(value: MasterModelMode.cloud, label: Text('CONODE'), icon: Icon(Icons.cloud)),
         ],
         selected: {connectionService.masterModelMode},
         onSelectionChanged: (newSelection) {
@@ -660,7 +655,7 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
     );
   }
 
-  void _showSavePersonaDialog(ThemeManager theme, ConnectionService connectionService) {
+  void _showSavePersonaDialog(ThemeManager theme, ConnectionService connectionService, bool isHelix) {
     final TextEditingController nameController = TextEditingController();
     showDialog(
       context: context,
@@ -685,10 +680,15 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
               onPressed: () {
                 final name = nameController.text.trim();
                 if (name.isNotEmpty) {
-                  connectionService.saveCustomPersona(name, _personalizationController.text.trim());
-                  setState(() {
-                    _selectedPreset = name;
-                  });
+                  final prompt = isHelix 
+                      ? _helixPersonalizationController.text.trim() 
+                      : _conodePersonalizationController.text.trim();
+                  connectionService.saveCustomPersona(name, prompt);
+                  if (isHelix) {
+                    setState(() => _selectedHelixPreset = name);
+                  } else {
+                    setState(() => _selectedConodePreset = name);
+                  }
                   Navigator.pop(context);
                 }
               },
@@ -699,135 +699,150 @@ class _ConfigurationTabState extends State<ConfigurationTab> {
       },
     );
   }
-
   List<Widget> _buildPersonalizationContent(ThemeManager theme) {
     final connectionService = Provider.of<ConnectionService>(context);
+
+    return [
+      _buildPersonaSection(theme, connectionService, "H E L I X", _helixPersonalizationController, true),
+      const SizedBox(height: 32),
+      _buildPersonaSection(theme, connectionService, "CONODE", _conodePersonalizationController, false),
+    ];
+  }
+
+  Widget _buildPersonaSection(ThemeManager theme, ConnectionService connectionService, String label, TextEditingController controller, bool isHelix) {
     final customPersonas = connectionService.customPersonas;
+    final selectedPreset = isHelix ? _selectedHelixPreset : _selectedConodePreset;
 
     List<DropdownMenuItem<String>> dropdownItems = [
       const DropdownMenuItem(value: 'Custom', child: Text('Custom Persona')),
-      const DropdownMenuItem(value: 'Default Helix', child: Text('Default Helix')),
-      const DropdownMenuItem(value: 'Developer Brain', child: Text('Developer Brain')),
-      const DropdownMenuItem(value: 'Strict Assistant', child: Text('Strict Assistant')),
+      DropdownMenuItem(value: 'Default $label', child: Text('Default $label')),
+      const DropdownMenuItem(value: 'Senior Developer', child: Text('Senior Developer')),
+      const DropdownMenuItem(value: 'Creative Assistant', child: Text('Creative Assistant')),
     ];
 
     for (var entry in customPersonas.entries) {
       dropdownItems.add(DropdownMenuItem(value: entry.key, child: Text(entry.key)));
     }
 
-    // Ensure _selectedPreset is in the list
-    bool presetExists = dropdownItems.any((item) => item.value == _selectedPreset);
-    if (!presetExists) {
-      _selectedPreset = 'Custom';
-    }
-
-    return [
-      Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              initialValue: _selectedPreset,
-              dropdownColor: theme.chatBackgroundColor,
-        style: TextStyle(color: theme.textColor),
-        onChanged: (String? value) {
-          _resetInactivityTimer();
-          if (value != null) {
-            setState(() {
-              _selectedPreset = value;
-              switch (value) {
-                case 'Default Helix':
-                  _personalizationController.text = 'Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain. '
-                      'You are now a Coding Assistant with PC access. You can perform the following actions by including these specific tags in your response:\n'
-                      '1. To write a file: [WRITE:path/to/file]CONTENT_HERE[/WRITE]\n'
-                      '2. To execute a command: [EXECUTE:command_here]\n'
-                      '3. To read a file: [READ:path/to/file]\n'
-                      'Your workspace is restricted to E:\\Helix_Projects. Always use full paths within this directory.';
-                  break;
-                case 'Developer Brain':
-                  _personalizationController.text = 'Identity: You are a senior software engineering assistant. You must provide highly optimized code snippets, architectural advice, and keep responses extremely concise. No fluff.';
-                  break;
-                case 'Strict Assistant':
-                  _personalizationController.text = 'Identity: You are an extremely formal and highly strict digital assistant. You only answer exactly what is asked. You use professional, robotic language.';
-                  break;
-                default:
-                  if (customPersonas.containsKey(value)) {
-                    _personalizationController.text = customPersonas[value]!;
-                  }
-                  break;
-              }
-            });
-          }
-        },
-              decoration: InputDecoration(
-                labelText: 'Persona Preset',
-                labelStyle: TextStyle(color: theme.textColor.withValues(alpha: 0.6)),
-                filled: true,
-                fillColor: theme.chatBackgroundColor,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '$label PERSONA',
+              style: TextStyle(
+                color: theme.textColor.withValues(alpha: 0.5),
+                fontSize: 10,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.bold,
               ),
-              items: dropdownItems,
+            ),
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.add_circle_outline, color: theme.accentColor, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _showSavePersonaDialog(theme, connectionService, isHelix),
+                ),
+                if (customPersonas.containsKey(selectedPreset))
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                    padding: const EdgeInsets.only(left: 8),
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      connectionService.deleteCustomPersona(selectedPreset);
+                      setState(() {
+                        if (isHelix) _selectedHelixPreset = 'Custom';
+                        else _selectedConodePreset = 'Custom';
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: dropdownItems.any((item) => item.value == selectedPreset) ? selectedPreset : 'Custom',
+          dropdownColor: theme.chatBackgroundColor,
+          style: TextStyle(color: theme.textColor, fontSize: 12),
+          onChanged: (String? value) {
+            _resetInactivityTimer();
+            if (value != null) {
+              setState(() {
+                if (isHelix) _selectedHelixPreset = value;
+                else _selectedConodePreset = value;
+                
+                if (value == 'Default H E L I X' || value == 'Default CONODE') {
+                  controller.text = isHelix 
+                      ? 'Identity: You are H E L I X, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain. '
+                        'You are a Flutter Developer AI. To perform terminal actions, use this tag: [EXECUTE:command_here] ... Your workspace is restricted to E:\\Helix_Projects.'
+                      : 'Identity: You are CONODE, a powerful cloud-assisted AI helper. You are efficient, analytical, and supportive. '
+                        'You are a Flutter Developer AI. To perform terminal actions, use this tag: [EXECUTE:command_here] ... Your workspace is restricted to E:\\Helix_Projects.';
+                } else if (value == 'Senior Developer') {
+                  controller.text = 'Identity: You are a senior software engineering assistant. You provide optimized code, architectural advice, and concise responses.';
+                } else if (value == 'Creative Assistant') {
+                  controller.text = 'Identity: You are a creative brainstorming partner. You provide expansive, imaginative, and encouraging responses.';
+                } else if (customPersonas.containsKey(value)) {
+                  controller.text = customPersonas[value]!;
+                }
+              });
+            }
+          },
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: theme.chatBackgroundColor,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          ),
+          items: dropdownItems,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: controller,
+          maxLines: 5,
+          style: TextStyle(color: theme.textColor, fontSize: 13, height: 1.4),
+          onChanged: (val) {
+            _resetInactivityTimer();
+            setState(() {
+              if (isHelix) _selectedHelixPreset = 'Custom';
+              else _selectedConodePreset = 'Custom';
+            });
+          },
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: theme.chatBackgroundColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.add_circle_outline, color: theme.accentColor),
-            tooltip: 'Save as New Persona',
-            onPressed: () => _showSavePersonaDialog(theme, connectionService),
-          ),
-          if (customPersonas.containsKey(_selectedPreset))
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-              tooltip: 'Delete Persona',
-              onPressed: () {
-                connectionService.deleteCustomPersona(_selectedPreset);
-                setState(() {
-                  _selectedPreset = 'Custom';
-                });
-              },
-            ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      TextField(
-        controller: _personalizationController,
-        maxLines: 8,
-        style: TextStyle(color: theme.textColor, fontSize: 14, height: 1.5),
-        onChanged: (_) {
-          _resetInactivityTimer();
-          if (_selectedPreset != 'Custom') {
-            setState(() => _selectedPreset = 'Custom');
-          }
-        },
-        decoration: InputDecoration(
-          labelText: 'Master System Instruction',
-          alignLabelWithHint: true,
-          labelStyle: TextStyle(color: theme.textColor.withValues(alpha: 0.6)),
-          filled: true,
-          fillColor: theme.chatBackgroundColor,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
         ),
-      ),
-      const SizedBox(height: 32),
-      ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: theme.accentColor,
-          foregroundColor: theme.backgroundColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          minimumSize: const Size(double.infinity, 50),
+        const SizedBox(height: 8),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: theme.accentColor.withValues(alpha: 0.1),
+            foregroundColor: theme.accentColor,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            minimumSize: const Size(double.infinity, 40),
+          ),
+          onPressed: () {
+            if (isHelix) {
+              connectionService.setHelixSystemPrompt(controller.text.trim());
+            } else {
+              connectionService.setConodeSystemPrompt(controller.text.trim());
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('$label Persona Updated', style: TextStyle(color: theme.backgroundColor)), backgroundColor: theme.accentColor),
+            );
+          },
+          child: Text('SAVE $label PERSONA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
         ),
-        onPressed: () {
-          Provider.of<ConnectionService>(context, listen: false)
-              .setSystemPrompt(_personalizationController.text.trim());
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Master Persona Updated', style: TextStyle(color: theme.backgroundColor)), backgroundColor: theme.accentColor),
-          );
-        },
-        child: const Text('SAVE PERSONA', style: TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.bold)),
-      ),
-    ];
+      ],
+    );
   }
 }

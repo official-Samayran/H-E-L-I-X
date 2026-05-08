@@ -22,4 +22,19 @@ class CommandService {
       return false;
     }
   }
+  Future<bool> deleteFile(String path) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://${_baseProvider.hostIP}:8888/delete'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'path': path,
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
 }

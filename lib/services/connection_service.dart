@@ -25,8 +25,9 @@ class ConnectionService extends ChangeNotifier {
   bool _isCloudFallbackActive = true;
   bool _isTyping = false;
   String? _geminiApiKey;
-  String _selectedModel = 'Ollama'; // Defaults to Ollama for automatic fallback
-  String _systemPrompt = '';
+  String _selectedModel = 'Helix'; // Defaults to Helix for automatic fallback
+  String _helixSystemPrompt = '';
+  String _conodeSystemPrompt = '';
   Map<String, String> _customPersonas = {};
   MasterModelMode _masterModelMode = MasterModelMode.automatic;
   
@@ -40,7 +41,8 @@ class ConnectionService extends ChangeNotifier {
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   String? get geminiApiKey => _geminiApiKey;
   String get selectedModel => _selectedModel;
-  String get systemPrompt => _systemPrompt;
+  String get helixSystemPrompt => _helixSystemPrompt;
+  String get conodeSystemPrompt => _conodeSystemPrompt;
   Map<String, String> get customPersonas => Map.unmodifiable(_customPersonas);
   MasterModelMode get masterModelMode => _masterModelMode;
 
@@ -51,24 +53,42 @@ class ConnectionService extends ChangeNotifier {
 
   Future<void> _initStorage() async {
     _geminiApiKey = await _storage.read(key: 'gemini_api_key');
-    _selectedModel = await _storage.read(key: 'selected_model') ?? 'Gemini';
+    _selectedModel = await _storage.read(key: 'selected_model') ?? 'Conode';
     
     final savedModeIndex = await _storage.read(key: 'master_model_mode');
     if (savedModeIndex != null) {
       _masterModelMode = MasterModelMode.values[int.parse(savedModeIndex)];
     }
     
-    final savedPrompt = await _storage.read(key: 'system_prompt');
-    if (savedPrompt != null && savedPrompt.trim().isNotEmpty) {
-      _systemPrompt = savedPrompt;
+    final savedHelixPrompt = await _storage.read(key: 'helix_system_prompt');
+    if (savedHelixPrompt != null && savedHelixPrompt.trim().isNotEmpty) {
+      _helixSystemPrompt = savedHelixPrompt;
     } else {
-      _systemPrompt = 'Identity: You are Helix, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain. '
+      _helixSystemPrompt = 'Identity: You are H E L I X, a futuristic, high-end AI assistant. You are witty, grounded, and proactive. Strict Rule: Never admit to being an existing commercial AI or Google-trained. You are a personal digital brain. '
           'You are a Flutter Developer AI. To perform terminal actions, use this tag: [EXECUTE:command_here] Example: To install dependencies, use [EXECUTE:flutter pub get]. Always navigate to the correct project directory before running commands if needed. '
+          'When asked to "Run" the app, use: [EXECUTE:flutter run -d windows]. '
           'You can also perform these actions:\n'
           '1. To write a file: [WRITE:path/to/file]CONTENT_HERE[/WRITE]\n'
           '2. To execute a command: [EXECUTE:command_here]\n'
           '3. To read a file: [READ:path/to/file]\n'
-          '4. To list files in workspace: [LIST_FILES:path]. Use this to understand project structure before writing code.\n'
+          '4. To delete a file: [DELETE:path]\n'
+          '5. To list files in workspace: [LIST_FILES:path]. Use this to understand project structure before writing code.\n'
+          'Your workspace is restricted to E:\\Helix_Projects. Always use full paths within this directory.';
+    }
+
+    final savedConodePrompt = await _storage.read(key: 'conode_system_prompt');
+    if (savedConodePrompt != null && savedConodePrompt.trim().isNotEmpty) {
+      _conodeSystemPrompt = savedConodePrompt;
+    } else {
+      _conodeSystemPrompt = 'Identity: You are CONODE, a powerful cloud-assisted AI helper. You are efficient, analytical, and supportive. '
+          'You are a Flutter Developer AI. To perform terminal actions, use this tag: [EXECUTE:command_here] Example: To install dependencies, use [EXECUTE:flutter pub get]. Always navigate to the correct project directory before running commands if needed. '
+          'When asked to "Run" the app, use: [EXECUTE:flutter run -d windows]. '
+          'You can also perform these actions:\n'
+          '1. To write a file: [WRITE:path/to/file]CONTENT_HERE[/WRITE]\n'
+          '2. To execute a command: [EXECUTE:command_here]\n'
+          '3. To read a file: [READ:path/to/file]\n'
+          '4. To delete a file: [DELETE:path]\n'
+          '5. To list files in workspace: [LIST_FILES:path]. Use this to understand project structure before writing code.\n'
           'Your workspace is restricted to E:\\Helix_Projects. Always use full paths within this directory.';
     }
     
@@ -115,9 +135,15 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setSystemPrompt(String prompt) async {
-    await _storage.write(key: 'system_prompt', value: prompt);
-    _systemPrompt = prompt;
+  Future<void> setHelixSystemPrompt(String prompt) async {
+    await _storage.write(key: 'helix_system_prompt', value: prompt);
+    _helixSystemPrompt = prompt;
+    notifyListeners();
+  }
+
+  Future<void> setConodeSystemPrompt(String prompt) async {
+    await _storage.write(key: 'conode_system_prompt', value: prompt);
+    _conodeSystemPrompt = prompt;
     notifyListeners();
   }
 
@@ -172,10 +198,10 @@ class ConnectionService extends ChangeNotifier {
       }
     }
 
-    bool ollamaAvailable = await _pingPort(ip, 11434);
-    bool helixAvailable = await _pingPort(ip, 8000);
+    bool helixPortAvailable = await _pingPort(ip, 11434);
+    bool agentAvailable = await _pingPort(ip, 8000);
 
-    bool isNowAvailable = ollamaAvailable || helixAvailable;
+    bool isNowAvailable = helixPortAvailable || agentAvailable;
     _handleStateChange(isNowAvailable);
   }
 
@@ -245,21 +271,21 @@ class ConnectionService extends ChangeNotifier {
     switch (_masterModelMode) {
       case MasterModelMode.automatic:
         if (_isLocalAvailable) {
-          await _sendToOllama(msgText);
+          await _sendToHelix(msgText);
         } else {
-          await _sendToGemini(msgText);
+          await _sendToConode(msgText);
         }
         break;
       case MasterModelMode.local:
         if (_isLocalAvailable) {
-          await _sendToOllama(msgText);
+          await _sendToHelix(msgText);
         } else {
-          addSystemMessage("Pc offline. Cannot process message in Local mode.");
+          addSystemMessage("H E L I X is currently offline.");
           // No fallback
         }
         break;
       case MasterModelMode.cloud:
-        await _sendToGemini(msgText);
+        await _sendToConode(msgText);
         break;
     }
   }
@@ -278,18 +304,18 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _sendToOllama(String text) async {
+  Future<void> _sendToHelix(String text) async {
     _isTyping = true;
     notifyListeners();
     
-    _messages.add(ChatMessage(text: "", role: MessageRole.ai, timestamp: DateTime.now()));
+    _messages.add(ChatMessage(text: "", role: MessageRole.ai, timestamp: DateTime.now(), modelName: "H E L I X"));
     final messageIndex = _messages.length - 1;
 
     try {
       final requestBody = jsonEncode({
         'model': 'llama3',
         'prompt': text,
-        'system': _systemPrompt,
+        'system': _helixSystemPrompt,
         'stream': true,
       });
       
@@ -301,7 +327,7 @@ class ConnectionService extends ChangeNotifier {
       final streamedResponse = await client.send(request).timeout(const Duration(seconds: 10));
       
       if (streamedResponse.statusCode != 200) {
-        throw Exception("Ollama returned ${streamedResponse.statusCode}");
+        throw Exception("H E L I X returned ${streamedResponse.statusCode}");
       }
 
       String accumulatedText = "";
@@ -312,7 +338,7 @@ class ConnectionService extends ChangeNotifier {
           final newText = json['response'] ?? '';
           accumulatedText += newText;
           
-          _messages[messageIndex] = ChatMessage(text: accumulatedText, role: MessageRole.ai, timestamp: DateTime.now());
+          _messages[messageIndex] = ChatMessage(text: accumulatedText, role: MessageRole.ai, timestamp: DateTime.now(), modelName: "H E L I X");
           notifyListeners();
         } catch (e) {
           // Ignore parse errors on chunk
@@ -321,27 +347,32 @@ class ConnectionService extends ChangeNotifier {
       _saveMessages();
       await _processAITags(accumulatedText);
     } catch (e) {
-      debugPrint('Ollama Connection Error: $e');
+      debugPrint('H E L I X Connection Error: $e');
       _handleStateChange(false);
       _messages.removeAt(messageIndex);
-      addSystemMessage("Ollama offline/timeout. Falling back to Gemini...");
-      await _sendToGemini(text); // Fallback
+      
+      if (_masterModelMode == MasterModelMode.automatic) {
+        addSystemMessage("H E L I X offline/timeout. Falling back to CONODE...");
+        await _sendToConode(text); // Fallback
+      } else {
+        addSystemMessage("H E L I X is currently offline.");
+      }
     } finally {
       _isTyping = false;
       notifyListeners();
     }
   }
 
-  Future<void> _sendToGemini(String text) async {
+  Future<void> _sendToConode(String text) async {
     if (_geminiApiKey == null || _geminiApiKey!.trim().isEmpty) {
-      addSystemMessage("Error: Gemini API Key missing. Please update in Settings.");
+      addSystemMessage("Error: CONODE API Key missing. Please update in Settings.");
       return;
     }
 
     _isTyping = true;
     notifyListeners();
     
-    _messages.add(ChatMessage(text: "", role: MessageRole.ai, timestamp: DateTime.now()));
+    _messages.add(ChatMessage(text: "", role: MessageRole.ai, timestamp: DateTime.now(), modelName: "CONODE"));
     final messageIndex = _messages.length - 1;
 
     try {
@@ -352,7 +383,7 @@ class ConnectionService extends ChangeNotifier {
           'system_instruction': {
             'parts': [
               {
-                'text': _systemPrompt
+                'text': _conodeSystemPrompt
               }
             ]
           },
@@ -363,11 +394,11 @@ class ConnectionService extends ChangeNotifier {
       final streamedResponse = await client.send(request);
       
       if (streamedResponse.statusCode == 429) {
-        addSystemMessage("Gemini API Rate Limit Exceeded (429). Please wait a moment before trying again.");
+        addSystemMessage("CONODE API Rate Limit Exceeded (429). Please wait a moment before trying again.");
         _messages.removeAt(messageIndex);
         return;
       } else if (streamedResponse.statusCode != 200) {
-        addSystemMessage("Gemini Error: ${streamedResponse.statusCode}");
+        addSystemMessage("CONODE Error: ${streamedResponse.statusCode}");
         _messages.removeAt(messageIndex);
         return;
       }
@@ -385,7 +416,7 @@ class ConnectionService extends ChangeNotifier {
               final newText = parts[0]['text'] ?? '';
               accumulatedText += newText;
               
-              _messages[messageIndex] = ChatMessage(text: accumulatedText, role: MessageRole.ai, timestamp: DateTime.now());
+              _messages[messageIndex] = ChatMessage(text: accumulatedText, role: MessageRole.ai, timestamp: DateTime.now(), modelName: "CONODE");
               notifyListeners();
             }
           } catch (e) {
@@ -396,7 +427,7 @@ class ConnectionService extends ChangeNotifier {
       _saveMessages();
       await _processAITags(accumulatedText);
     } catch (e) {
-       addSystemMessage("Gemini Error: Could not connect to API.");
+       addSystemMessage("CONODE Error: Could not connect to API.");
     } finally {
        _isTyping = false;
        notifyListeners();
@@ -473,6 +504,7 @@ $historyContext
     final writeRegex = RegExp(r'\[WRITE:(.*?)\](.*?)\[/WRITE\]', dotAll: true);
     final executeRegex = RegExp(r'\[EXECUTE:(.*?)\]');
     final readRegex = RegExp(r'\[READ:(.*?)\]');
+    final deleteRegex = RegExp(r'\[DELETE:(.*?)\]');
     final listRegex = RegExp(r'\[LIST_FILES:(.*?)\]');
 
     // Handle LIST_FILES tags
@@ -506,6 +538,16 @@ $historyContext
       }
     }
 
+    // Handle DELETE tags
+    final deleteMatches = deleteRegex.allMatches(text);
+    for (var match in deleteMatches) {
+      final path = match.group(1);
+      if (path != null) {
+        debugPrint("🗑️ Step: Found DELETE tag for $path");
+        await _handlePCAgentRequest('delete', {'path': path});
+      }
+    }
+
     // Handle EXECUTE tags
     final executeMatches = executeRegex.allMatches(text);
     for (var match in executeMatches) {
@@ -533,9 +575,11 @@ $historyContext
     
     // Task 1.2: BEFORE sending
     if (endpoint == 'execute') {
-      addSystemMessage("🛠️ Helix: Executing terminal command...");
+      addSystemMessage("🛠️ H E L I X: Executing terminal command...");
+    } else if (endpoint == 'delete') {
+      addSystemMessage("🗑️ H E L I X: Deleting file...");
     } else if (isListRequest) {
-      addSystemMessage("🔍 Helix: Mapping project structure...");
+      addSystemMessage("🔍 H E L I X: Mapping project structure...");
     } else {
       addSystemMessage("📡 Sending request to PC Agent ($endpoint)...");
     }
@@ -553,19 +597,19 @@ $historyContext
       if (response.statusCode == 200) {
         if (isListRequest) {
           addHiddenSystemMessage("📁 Workspace Structure for ${payload['path']}:\n${response.body}");
-          addSystemMessage("✅ Helix has indexed the directory: ${payload['path']}");
+          addSystemMessage("✅ H E L I X has indexed the directory: ${payload['path']}");
         } else {
-          addSystemMessage("✅ PC Agent: Operation Successful (File Created/Command Executed).");
+          addSystemMessage("✅ H E L I X: Operation completed successfully.");
         }
         debugPrint("✅ Step: 200 OK from PC Agent.");
       } else {
         // Task 1.2: IF FAIL (Error code)
-        addSystemMessage("❌ PC Agent Error: ${response.statusCode} - ${response.body}");
+        addSystemMessage("❌ H E L I X Error: PC Agent returned ${response.statusCode}");
         debugPrint("❌ Step: Error ${response.statusCode} from PC Agent.");
       }
     } catch (e) {
       // Task 1.2: IF TIMEOUT/CONNECTION REFUSED
-      addSystemMessage("🚫 Connection Error: Could not reach PC Agent. Check IP and Port 8888.");
+      addSystemMessage("🚫 H E L I X Error: Connection to PC Agent failed.");
       debugPrint("🚫 Step: Connection Failed - $e");
     }
   }

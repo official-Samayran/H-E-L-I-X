@@ -19,7 +19,7 @@ class SystemHud extends StatelessWidget {
           height: 30,
           alignment: Alignment.center,
           child: Text(
-            'SYSTEM STANDBY',
+            'H E L I X STANDBY',
             style: TextStyle(
               color: theme.textColor.withValues(alpha: 0.5),
               letterSpacing: 2,
@@ -44,7 +44,7 @@ class SystemHud extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                'SYSTEM STANDBY',
+                'H E L I X STANDBY',
                 style: TextStyle(
                   color: theme.textColor.withValues(alpha: 0.5),
                   letterSpacing: 2,

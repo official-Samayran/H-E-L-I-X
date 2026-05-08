@@ -186,15 +186,19 @@ class AppThemes {
       accentColor: Colors.white,
       themeData: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: Colors.black,
-        textTheme: GoogleFonts.robotoTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
+        textTheme: GoogleFonts.tekoTextTheme(ThemeData.dark().textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white),
         colorScheme: const ColorScheme.dark().copyWith(
           primary: Colors.white,
           secondary: Colors.white,
           surface: Colors.black,
         ),
+        dividerColor: Colors.white38,
         cardTheme: CardThemeData(
           color: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16), 
+            side: const BorderSide(color: Colors.white38, width: 1.5),
+          ),
         ),
       ),
     ),

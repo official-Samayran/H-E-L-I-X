@@ -147,7 +147,25 @@ class ChatBubble extends StatelessWidget {
                       ),
                     ],
                   )
-                : _buildMarkdown(context, theme, _getCleanText(message.text) + (isStreaming ? ' █' : '')),
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (message.modelName != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            message.modelName?.toUpperCase() == "H E L I X" ? "🧬 H E L I X" : "☁️ CONODE",
+                            style: TextStyle(
+                              color: theme.accentColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      _buildMarkdown(context, theme, _getCleanText(message.text) + (isStreaming ? ' █' : '')),
+                    ],
+                  ),
           ),
           if (!isUser && _hasActionTags(message.text))
             Padding(
@@ -157,7 +175,7 @@ class ChatBubble extends StatelessWidget {
                   Icon(Icons.auto_fix_high, size: 14, color: theme.accentColor.withValues(alpha: 0.7)),
                   const SizedBox(width: 8),
                   Text(
-                    "🛠️ Helix is modifying files...",
+                    "🛠️ H E L I X is modifying files...",
                     style: TextStyle(
                       color: theme.accentColor.withValues(alpha: 0.7),
                       fontSize: 12,
@@ -179,7 +197,7 @@ class ChatBubble extends StatelessWidget {
                 onPressed: () {
                   final Event event = Event(
                     title: message.taskTitle,
-                    description: 'Scheduled via Helix AI: ${message.text}',
+                    description: 'Scheduled via H E L I X: ${message.text}',
                     location: '',
                     startDate: DateTime.now().add(const Duration(days: 1, hours: 9)), 
                     endDate: DateTime.now().add(const Duration(days: 1, hours: 10)),
@@ -272,7 +290,7 @@ class ChatBubble extends StatelessWidget {
     }
     boxLines.add(bottomBorder);
 
-    String prefix = isSystem ? '[SYSTEM]\n' : (isUser ? '>[USER]\n' : '>[HELIX]\n');
+    String prefix = isSystem ? '[SYSTEM]\n' : (isUser ? '>[USER]\n' : (message.modelName?.toUpperCase() == "H E L I X" ? '>[H E L I X]\n' : '>[CONODE]\n'));
     String finalAscii = prefix + boxLines.join('\n');
 
     return Align(

@@ -1,5 +1,6 @@
 import 'command_service.dart';
 import 'task_service.dart';
+import 'connection_service.dart';
 import '../models/task_item.dart';
 
 enum IntentType { systemCommand, generalQuery, localAITask, taskExtraction }
@@ -20,7 +21,7 @@ class IntentRouter {
   ];
   final List<String> _knownApps = ['spotify', 'chrome', 'discord', 'vscode'];
 
-  Future<IntentType> routeInput(String input, bool isLocalAvailable) async {
+  Future<IntentType> routeInput(String input, ConnectionService connectionService) async {
     final lowerInput = input.trim().toLowerCase();
 
     // Command-First Validation
@@ -90,7 +91,17 @@ class IntentRouter {
     }
 
     // Default to active AI if ambiguous or not a command
-    return isLocalAvailable ? IntentType.localAITask : IntentType.generalQuery;
+    final mode = connectionService.masterModelMode;
+    final isLocalAvailable = connectionService.isLocalAvailable;
+
+    if (mode == MasterModelMode.local) {
+      return IntentType.localAITask;
+    } else if (mode == MasterModelMode.cloud) {
+      return IntentType.generalQuery;
+    } else {
+      // Automatic
+      return isLocalAvailable ? IntentType.localAITask : IntentType.generalQuery;
+    }
   }
 
   bool isCodingIntent(String prompt) {
@@ -99,7 +110,9 @@ class IntentRouter {
       'make an app',
       'write code',
       'flutter create',
-      '/helix-code'
+      '/helix-code',
+      'run',
+      'execute'
     ];
     return keywords.any((k) => prompt.toLowerCase().contains(k));
   }

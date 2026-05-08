@@ -9,6 +9,8 @@ class ChatMessage {
   final bool isImageAttachment;
   final bool isHidden;
 
+  final String? modelName;
+
   ChatMessage({
     required this.text,
     required this.role,
@@ -17,6 +19,7 @@ class ChatMessage {
     this.attachmentPath,
     this.isImageAttachment = false,
     this.isHidden = false,
+    this.modelName,
   });
 
   Map<String, dynamic> toJson() {
@@ -28,6 +31,7 @@ class ChatMessage {
       'attachmentPath': attachmentPath,
       'isImageAttachment': isImageAttachment,
       'isHidden': isHidden,
+      'modelName': modelName,
     };
   }
 
@@ -40,6 +44,7 @@ class ChatMessage {
       attachmentPath: json['attachmentPath'],
       isImageAttachment: json['isImageAttachment'] ?? false,
       isHidden: json['isHidden'] ?? false,
+      modelName: json['modelName'],
     );
   }
 

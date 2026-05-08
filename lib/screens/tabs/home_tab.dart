@@ -177,7 +177,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
       }
       final intent = await router.routeInput(
         text,
-        connectionService.isLocalAvailable,
+        connectionService,
       );
 
       if (intent == IntentType.systemCommand) {
@@ -279,7 +279,9 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
             : themeManager.chatBackgroundColor.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: themeManager.textColor.withValues(alpha: 0.05),
+          color: themeManager.currentThemeType == AppThemeType.oled 
+              ? themeManager.textColor.withValues(alpha: 0.3) 
+              : themeManager.textColor.withValues(alpha: 0.05),
           width: 1,
         ),
         boxShadow: [
@@ -468,7 +470,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildControlCenterSection(ThemeManager themeManager) {
+  Widget _buildControlCenterSection(ThemeManager themeManager, ConnectionService connectionService) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       children: [
@@ -577,7 +579,11 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                       ),
                     ),
                     Text(
-                      'Gemini Flash',
+                      connectionService.masterModelMode == MasterModelMode.local 
+                          ? 'H E L I X' 
+                          : connectionService.masterModelMode == MasterModelMode.cloud 
+                              ? 'CONODE' 
+                              : (connectionService.isLocalAvailable ? 'H E L I X' : 'CONODE'),
                       style: TextStyle(
                         color: themeManager.textColor.withValues(alpha: 0.5),
                         fontSize: 12,
@@ -786,7 +792,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildChatBar(ThemeManager themeManager) {
+  Widget _buildChatBar(ThemeManager themeManager, ConnectionService connectionService) {
     return Positioned(
       bottom: 24,
       left: 16,
@@ -823,7 +829,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
               },
               child: _isUtilityExpanded
                   ? _buildUtilityDock(themeManager)
-                  : _buildDefaultInput(themeManager),
+                  : _buildDefaultInput(themeManager, connectionService),
             ),
           ),
         ),
@@ -831,7 +837,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildDefaultInput(ThemeManager themeManager) {
+  Widget _buildDefaultInput(ThemeManager themeManager, ConnectionService connectionService) {
     return Column(
       key: const ValueKey('default_input'),
       mainAxisSize: MainAxisSize.min,
@@ -904,11 +910,14 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                 controller: _chatController,
                 style: TextStyle(color: themeManager.textColor),
                 decoration: InputDecoration(
-                  hintText: 'Message Helix...',
+                  hintText: (connectionService.masterModelMode == MasterModelMode.local && !connectionService.isLocalAvailable) 
+                      ? 'H E L I X is currently offline...' 
+                      : 'Message H E L I X...',
                   hintStyle: TextStyle(
                     color: themeManager.textColor.withValues(alpha: 0.4),
                   ),
                   border: InputBorder.none,
+                  enabled: !(connectionService.masterModelMode == MasterModelMode.local && !connectionService.isLocalAvailable),
                 ),
                 onSubmitted: (_) => _handleInput(),
                 onTap: () {
@@ -927,7 +936,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                     ? Colors.redAccent
                     : themeManager.textColor.withValues(alpha: 0.7),
               ),
-              onPressed: _listen,
+              onPressed: (connectionService.masterModelMode == MasterModelMode.local && !connectionService.isLocalAvailable) ? null : _listen,
             ),
             Container(
               margin: const EdgeInsets.only(right: 8),
@@ -938,10 +947,12 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
               child: IconButton(
                 icon: Icon(
                   Icons.arrow_upward,
-                  color: themeManager.backgroundColor,
+                  color: (connectionService.masterModelMode == MasterModelMode.local && !connectionService.isLocalAvailable) 
+                      ? themeManager.backgroundColor.withValues(alpha: 0.5) 
+                      : themeManager.backgroundColor,
                   size: 20,
                 ),
-                onPressed: _handleInput,
+                onPressed: (connectionService.masterModelMode == MasterModelMode.local && !connectionService.isLocalAvailable) ? null : _handleInput,
               ),
             ),
           ],
@@ -1045,7 +1056,11 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                connectionService.masterModelMode.name.toUpperCase(),
+                                connectionService.masterModelMode == MasterModelMode.automatic 
+                                    ? '🧬 H E L I X (AUTO)' 
+                                    : connectionService.masterModelMode == MasterModelMode.local 
+                                        ? '🧬 H E L I X' 
+                                        : '☁️ CONODE',
                                 style: TextStyle(
                                   color: themeManager.accentColor,
                                   fontSize: 10,
@@ -1148,7 +1163,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                     },
                     child: _isUtilityExpanded
                         ? _buildUtilityDock(themeManager)
-                        : _buildDefaultInput(themeManager),
+                        : _buildDefaultInput(themeManager, connectionService),
                   ),
                 ),
               ],
@@ -1193,7 +1208,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                     setState(() => _currentSection = index),
                 children: [
                   _buildProductivitySection(themeManager),
-                  _buildControlCenterSection(themeManager),
+                  _buildControlCenterSection(themeManager, connectionService),
                 ],
               ),
             ),
@@ -1201,7 +1216,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
         ),
 
         // Toast Chat Bar
-        if (!_isChatExpanded) _buildChatBar(themeManager),
+        if (!_isChatExpanded) _buildChatBar(themeManager, connectionService),
 
         // Expanded Chat Overlay
         _buildExpandedChat(themeManager, connectionService),
